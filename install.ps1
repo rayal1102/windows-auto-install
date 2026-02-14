@@ -126,7 +126,7 @@ if (-not $wtInstalled) {
 Write-Host "`nDang tai script chinh..." -ForegroundColor Yellow
 
 # THAY DOI LINK NAY THANH LINK GITHUB CUA BAN
-$mainScriptUrl = "https://raw.githubusercontent.com/YOUR_USERNAME/windows-auto-install/main/main-script.ps1"
+$mainScriptUrl = "https://raw.githubusercontent.com/rayal1102/windows-auto-install/refs/heads/main/main-script.ps1"
 $mainScript = "$env:TEMP\windows_install_main.ps1"
 
 try {
