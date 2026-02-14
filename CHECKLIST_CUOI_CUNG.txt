@@ -1,0 +1,304 @@
+# ===================================================================
+# CHECKLIST HOAN CHINH - BUOC CUOI CUNG
+# ===================================================================
+
+## ✅ DANH SACH FILES CAN UPLOAD
+
+### 4 FILES CHINH (BAT BUOC)
+
+- [ ] **install.ps1** (6KB)
+      └─> Bootstrap script, chay dau tien
+
+- [ ] **main-script.ps1** (28KB)  
+      └─> Script chinh, chay trong Terminal
+      └─> ⚠️ CAN SUA 2 LINKS (appsJsonUrl, guiModuleUrl)
+
+- [ ] **apps.json** (7KB)
+      └─> Danh sach tat ca apps
+
+- [ ] **AppSelector.psm1** (6KB)
+      └─> Module GUI chon apps
+
+### 2 FILES BO SUNG (TUY CHON)
+
+- [ ] **test-office.ps1** (10KB)
+      └─> Test cai Office rieng
+
+- [ ] **README.md** (5KB)
+      └─> Huong dan cho GitHub
+
+---
+
+## ✅ CHECKLIST CAI DAT
+
+### BUOC 1: TAO REPOSITORY
+
+- [ ] Vao https://github.com/new
+- [ ] Dat ten: `windows-auto-install`
+- [ ] Chon: **Public** (QUAN TRONG!)
+- [ ] Click "Create repository"
+
+### BUOC 2: UPLOAD FILES
+
+- [ ] Click "Add file" > "Upload files"
+- [ ] Keo 4 files chinh vao
+- [ ] Commit message: "Initial commit"
+- [ ] Click "Commit changes"
+
+### BUOC 3: SUA LINKS
+
+**File 1: install.ps1**
+- [ ] Mo file tren GitHub
+- [ ] Click "Edit" (icon but chi)
+- [ ] Tim dong:
+      ```
+      $mainScriptUrl = "https://raw.githubusercontent.com/YOUR_USERNAME/..."
+      ```
+- [ ] Thay `YOUR_USERNAME` bang username cua ban
+- [ ] Click "Commit changes"
+
+**File 2: main-script.ps1**
+- [ ] Mo file tren GitHub  
+- [ ] Click "Edit"
+- [ ] Tim 2 dong:
+      ```
+      $appsJsonUrl = "https://raw.githubusercontent.com/YOUR_USERNAME/..."
+      $guiModuleUrl = "https://raw.githubusercontent.com/YOUR_USERNAME/..."
+      ```
+- [ ] Thay `YOUR_USERNAME` (2 cho)
+- [ ] Click "Commit changes"
+
+### BUOC 4: LAY LINK
+
+- [ ] Vao file `install.ps1`
+- [ ] Click nut "Raw"
+- [ ] Copy URL tren trinh duyet
+- [ ] Luu lai link nay!
+
+### BUOC 5: TAO LINK NGAN (TUY CHON)
+
+- [ ] Vao https://is.gd
+- [ ] Paste link RAW
+- [ ] Tao link ngan (vd: is.gd/PCsetup)
+
+### BUOC 6: TEST
+
+- [ ] Mo PowerShell **as Administrator**
+- [ ] Chay lenh:
+      ```powershell
+      irm YOUR_LINK | iex
+      ```
+- [ ] Xem co chay khong
+
+### BUOC 7: AP DUNG PATCH (NEU MUON)
+
+**Neu muon them tinh nang xoa cache SoftwareDistribution:**
+
+- [ ] Mo file `main-script.ps1` tren GitHub
+- [ ] Click "Edit"
+- [ ] Tim phan "BUOC 2: WINDOWS UPDATE"
+- [ ] Thay the bang code trong file `PATCH_WINDOWS_UPDATE.txt`
+- [ ] Click "Commit changes"
+
+---
+
+## ✅ KIEM TRA CUOI CUNG
+
+### Kiem tra Repository
+
+- [ ] Repository la **Public** (khong phai Private)
+- [ ] Co day du 4 files chinh
+- [ ] Moi file da duoc commit
+
+### Kiem tra Links
+
+- [ ] Link trong install.ps1 da doi
+- [ ] Link trong main-script.ps1 da doi (2 cho)
+- [ ] Link RAW co the mo duoc
+
+### Kiem tra Chuc nang
+
+- [ ] Script chay duoc
+- [ ] GUI mo duoc
+- [ ] Apps cai duoc
+- [ ] Log file duoc tao
+
+---
+
+## ✅ TINH NANG MOI (PHIEN BAN NAY)
+
+Sau khi upload, script se co cac tinh nang sau:
+
+### 1. XOA CACHE WINDOWS UPDATE
+
+```
+Don dep cache Windows Update...
+  - Dung Windows Update service...
+  - Xoa cache: C:\Windows\SoftwareDistribution
+    + Xoa: Download
+    + Xoa: DataStore
+  [OK] Da don dep cache
+```
+
+**Loi ich:**
+- Tang toc do update
+- Giam loi update
+- Don dep 1-2GB cache
+
+### 2. TUY CHON BO QUA UPDATE
+
+```
+Ban co muon cap nhat Windows Update khong?
+  - Chon Y: Tien hanh update (khuyen nghi)
+  - Chon N: Bo qua, nhay thang den cai apps
+
+Cap nhat Windows? (Y/N) _
+```
+
+**Khi nao dung:**
+- Chon N: May moi, update roi, hoac khong muon update
+- Chon Y: Muon update day du (khuyen nghi)
+
+### 3. GUI CHON APPS
+
+```
+>>> DANG MO CUA SO CHON PHAN MEM <<<
+    Vui long chon apps trong cua so moi mo ra
+
+[Cua so GUI hien ra]
+- Tick chon apps
+- Tim kiem
+- Chon tat ca
+- OK
+```
+
+**Fallback:** Neu GUI loi → Tu dong dung TEXT MODE
+
+### 4. KIEM TRA VA UPDATE
+
+```
+[1/14] Chrome...
+  → Da cai, dang cap nhat...
+  [OK] Cap nhat thanh cong
+
+[2/14] UniKey...
+  → Chua cai, dang cai dat...
+  [OK] Cai dat thanh cong
+```
+
+**Thong minh:** Khong cai lai app da co
+
+---
+
+## ✅ TROUBLESHOOTING
+
+### Loi: "scripts is disabled"
+
+```powershell
+Set-ExecutionPolicy Bypass -Scope Process -Force
+```
+
+### Loi: "404 Not Found"
+
+- Repository chua Public?
+- Link chua doi YOUR_USERNAME?
+- File chua upload?
+
+### Loi: GUI khong mo
+
+- Script tu dong dung TEXT MODE
+- Chon apps bang so (1,2,3...)
+
+### Loi: Windows Update loi
+
+- Chon N de bo qua
+- Hoac xem log: `%TEMP%\WindowsAutoInstall_*.log`
+
+### Loi: Office loi 404
+
+- Link ODT het han
+- Xem file `FIX_ODT_404.txt` de cap nhat link moi
+
+---
+
+## ✅ SUPPORT
+
+### Neu gap loi:
+
+1. **Xem log file:**
+   ```
+   %TEMP%\WindowsAutoInstall_*.log
+   ```
+
+2. **Test tung phan:**
+   - Test install.ps1: `.\install.ps1`
+   - Test main-script.ps1: `.\main-script.ps1`
+   - Test Office: `.\test-office.ps1`
+
+3. **Kiem tra GitHub:**
+   - Files da upload day du?
+   - Links da doi?
+   - Repository la Public?
+
+4. **Doc tai lieu:**
+   - FINAL_PACKAGE.md
+   - PATCH_WINDOWS_UPDATE.txt
+   - HUONG_DAN_APPS_JSON.txt
+
+---
+
+## ✅ VI DU DAY DU
+
+**Username GitHub:** rayal1102
+
+### Files da upload:
+✅ install.ps1  
+✅ main-script.ps1  
+✅ apps.json  
+✅ AppSelector.psm1  
+
+### Links da sua:
+
+**install.ps1:**
+```powershell
+$mainScriptUrl = "https://raw.githubusercontent.com/rayal1102/windows-auto-install/main/main-script.ps1"
+```
+
+**main-script.ps1:**
+```powershell
+$appsJsonUrl = "https://raw.githubusercontent.com/rayal1102/windows-auto-install/main/apps.json"
+$guiModuleUrl = "https://raw.githubusercontent.com/rayal1102/windows-auto-install/main/AppSelector.psm1"
+```
+
+### Link su dung:
+
+**Link day du:**
+```powershell
+irm https://raw.githubusercontent.com/rayal1102/windows-auto-install/main/install.ps1 | iex
+```
+
+**Link ngan:**
+```powershell
+irm is.gd/PCsetup | iex
+```
+
+---
+
+## ✅ KET LUAN
+
+Sau khi hoan thanh tat ca cac buoc tren, ban se co:
+
+✅ Script tu dong cai dat Windows hoan chinh  
+✅ GUI chon apps bang tick chuot  
+✅ Tuy chon bo qua Windows Update  
+✅ Tu dong xoa cache update  
+✅ 14 apps co ban + 35+ apps tuy chon  
+✅ Cai Office 365 (Word, Excel, PowerPoint)  
+✅ 1 dong lenh de chay het  
+
+**Chuc ban thanh cong! 🎉**
+
+Neu co van de, xem lai:
+- FINAL_PACKAGE.md
+- PATCH_WINDOWS_UPDATE.txt
+- Cac file *.txt trong thu muc outputs/

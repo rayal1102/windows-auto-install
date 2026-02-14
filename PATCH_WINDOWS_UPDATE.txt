@@ -1,0 +1,227 @@
+# ===================================================================
+# PATCH: THEM TINH NANG XOA CACHE VA TUY CHON BO QUA UPDATE
+# ===================================================================
+
+# File nay chua code can THEM vao main-script.ps1
+# THAY THE phan Windows Update (BUOC 2) bang code duoi day
+
+# ===================================================================
+# TIM VA THAY THE
+# ===================================================================
+
+# TIM DONG NAY TRONG main-script.ps1:
+# # ===================================================================
+# # BUOC 2: WINDOWS UPDATE
+# # ===================================================================
+
+# THAY THE TOAN BO PHAN TU DONG TREN DEN HET BUOC 2 BANG CODE DUOI:
+
+<#
+# ===================================================================
+# BUOC 2: WINDOWS UPDATE
+# ===================================================================
+Write-Log "`n[2/4] WINDOWS UPDATE" "WARNING"
+Write-Log "==================`n"
+
+# Hoi nguoi dung co muon update Windows khong
+Write-Log "Ban co muon cap nhat Windows Update khong?" "WARNING"
+Write-Log "  - Chon Y: Tien hanh update (khuyen nghi)" "INFO"
+Write-Log "  - Chon N: Bo qua, nhay thang den cai apps`n" "INFO"
+$doUpdate = Read-Host "Cap nhat Windows? (Y/N)"
+
+if ($doUpdate -ne 'Y' -and $doUpdate -ne 'y') {
+    Write-Log "Bo qua Windows Update`n" "INFO"
+    $skipUpdate = $true
+    $needsReboot = $false
+    $installed = 0
+} else {
+    Write-Log "Tien hanh Windows Update...`n" "INFO"
+    
+    # Don dep thu muc SoftwareDistribution
+    Write-Log "Don dep cache Windows Update..." "INFO"
+    try {
+        # Dung Windows Update services
+        Write-Log "  - Dung Windows Update service..." "INFO"
+        Stop-Service -Name wuauserv -Force -EA SilentlyContinue
+        Stop-Service -Name bits -Force -EA SilentlyContinue
+        Stop-Service -Name cryptsvc -Force -EA SilentlyContinue
+        Start-Sleep 2
+        
+        # Xoa cache
+        $sdPath = "$env:Windir\SoftwareDistribution"
+        if (Test-Path $sdPath) {
+            Write-Log "  - Xoa cache: $sdPath" "INFO"
+            try {
+                # Xoa tung thu muc con
+                $subFolders = @("Download", "DataStore")
+                foreach ($folder in $subFolders) {
+                    $fullPath = Join-Path $sdPath $folder
+                    if (Test-Path $fullPath) {
+                        Remove-Item "$fullPath\*" -Recurse -Force -EA SilentlyContinue
+                        Write-Log "    + Xoa: $folder" "SUCCESS"
+                    }
+                }
+                Write-Log "  [OK] Da don dep cache" "SUCCESS"
+            } catch {
+                Write-Log "  [CANH BAO] Mot so file dang duoc su dung" "WARNING"
+            }
+        }
+        
+        # Khoi dong lai services
+        Write-Log "  - Khoi dong lai services..." "INFO"
+        Start-Service -Name wuauserv -EA SilentlyContinue
+        Start-Service -Name bits -EA SilentlyContinue
+        Start-Service -Name cryptsvc -EA SilentlyContinue
+        
+        Write-Log "  [OK] Don dep hoan tat`n" "SUCCESS"
+        Start-Sleep 3
+    } catch {
+        Write-Log "  [LOI] Loi don dep: $($_.Exception.Message)" "ERROR"
+        Write-Log "  [INFO] Tiep tuc voi update...`n" "WARNING"
+    }
+
+    $skipUpdate = $false
+    $needsReboot = $false
+    $installed = 0
+
+    # Cai NuGet
+    try {
+        if (-not (Get-PackageProvider -Name NuGet -EA SilentlyContinue)) {
+            Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force -Scope CurrentUser | Out-Null
+        }
+    } catch {}
+
+    # Cai PSWindowsUpdate
+    try {
+        if (-not (Get-Module -ListAvailable -Name PSWindowsUpdate)) {
+            Set-PSRepository -Name PSGallery -InstallationPolicy Trusted -EA SilentlyContinue
+            Install-Module -Name PSWindowsUpdate -Force -Scope CurrentUser -AllowClobber -EA Stop
+            Write-Log "  [OK] Module cai xong" "SUCCESS"
+        }
+        Import-Module PSWindowsUpdate -Force -EA Stop
+    } catch {
+        Write-Log "  [LOI] Khong cai duoc module" "ERROR"
+        Write-Log "  [SKIP] Bo qua Update`n" "WARNING"
+        $skipUpdate = $true
+    }
+
+    if (-not $skipUpdate) {
+        Write-Log "Quet updates..." "INFO"
+        try {
+            $updates = Get-WindowsUpdate -MicrosoftUpdate -EA Stop
+            
+            if ($updates -and $updates.Count -gt 0) {
+                Write-Log "  Tim thay: $($updates.Count) updates`n" "SUCCESS"
+                
+                $valid = @()
+                $skippedReboot = @()
+                $skippedLarge = @()
+                
+                foreach ($u in $updates) {
+                    $size = if ($u.Size) { $u.Size } else { 0 }
+                    $sizeGB = [math]::Round($size/1GB, 2)
+                    $sizeMB = [math]::Round($size/1MB, 0)
+                    $sizeText = if ($sizeMB -gt 0) { "${sizeMB}MB" } else { "Unknown" }
+                    $updateName = if ($u.Title) { $u.Title } else { $u.KB }
+                    
+                    if ($size -gt 0 -and $sizeGB -gt $MaxUpdateSizeGB) {
+                        $skippedLarge += $u
+                        Write-Log "  [SKIP] $updateName" "WARNING"
+                        Write-Log "         Kich thuoc: ${sizeGB}GB (qua lon)" "WARNING"
+                        continue
+                    }
+                    
+                    if ($u.RebootRequired) {
+                        $skippedReboot += $u
+                        Write-Log "  [SKIP] $updateName" "WARNING"
+                        Write-Log "         Kich thuoc: $sizeText (can restart)" "WARNING"
+                    } else {
+                        $valid += $u
+                        Write-Log "  [CHON] $updateName" "INFO"
+                        Write-Log "         KB: $($u.KB) | Kich thuoc: $sizeText" "INFO"
+                    }
+                }
+                
+                if ($skippedReboot.Count -gt 0) {
+                    Write-Log "`nBo qua $($skippedReboot.Count) updates can restart" "WARNING"
+                }
+                if ($skippedLarge.Count -gt 0) {
+                    Write-Log "Bo qua $($skippedLarge.Count) updates qua lon" "WARNING"
+                }
+                
+                if ($valid.Count -gt 0) {
+                    Write-Log "`nBat dau cai $($valid.Count) updates..." "WARNING"
+                    Write-Log "Dang tai va cai dat tat ca cung luc (co the mat 5-15 phut)...`n" "INFO"
+                    
+                    try {
+                        $result = Install-WindowsUpdate -MicrosoftUpdate -AcceptAll -IgnoreReboot -Confirm:$false -EA Stop
+                        
+                        if ($result) {
+                            $installed = ($result | Where-Object { $_.Result -eq 'Installed' -or $_.Result -eq 'Downloaded' }).Count
+                            
+                            Write-Log "`nChi tiet ket qua:" "INFO"
+                            foreach ($r in $result) {
+                                $status = if ($r.Result -eq 'Installed') { "SUCCESS" } else { "WARNING" }
+                                $title = if ($r.Title) { $r.Title } else { $r.KB }
+                                Write-Log "  [$($r.Result)] $title" $status
+                            }
+                            
+                            Write-Log "`nTong ket: Cai thanh cong $installed/$($valid.Count) updates" "SUCCESS"
+                        } else {
+                            Write-Log "`nKhong co ket qua tra ve" "WARNING"
+                        }
+                    } catch {
+                        Write-Log "`n[LOI] Loi khi cai updates: $($_.Exception.Message)" "ERROR"
+                        Write-Log "Thu cai tung update rieng le..." "WARNING"
+                        
+                        $installed = 0
+                        $currentUpdate = 0
+                        foreach ($u in $valid) {
+                            $currentUpdate++
+                            $updateName = if ($u.Title) { $u.Title } else { $u.KB }
+                            
+                            Write-Log "`n[$currentUpdate/$($valid.Count)] $updateName" "INFO"
+                            try {
+                                $r = Install-WindowsUpdate -KBArticleID $u.KB -MicrosoftUpdate -AcceptAll -IgnoreReboot -Confirm:$false -EA Stop
+                                if ($r) {
+                                    Write-Log "  [OK] Cai thanh cong" "SUCCESS"
+                                    $installed++
+                                }
+                            } catch {
+                                Write-Log "  [LOI] $($_.Exception.Message)" "ERROR"
+                            }
+                        }
+                        Write-Log "`nTong ket: Cai thanh cong $installed/$($valid.Count) updates" "SUCCESS"
+                    }
+                    
+                    Write-Host ""
+                } else {
+                    Write-Log "`nKhong co update nao phu hop`n" "INFO"
+                }
+                
+                if ($skippedReboot.Count -gt 0) {
+                    $needsReboot = $true
+                }
+                
+            } else {
+                Write-Log "  [OK] He thong moi nhat`n" "SUCCESS"
+            }
+        } catch {
+            Write-Log "  [LOI] Kiem tra updates that bai`n" "ERROR"
+        }
+    }
+}
+#>
+
+# ===================================================================
+# NOTE: CODE TREN LA THAY THE HOAN TOAN CHO BUOC 2
+# ===================================================================
+
+# SAU KHI THAY THE, CODE SE HOAT DONG NHU SAU:
+# 1. Hoi nguoi dung co muon update khong (Y/N)
+# 2. Neu N: Bo qua toan bo buoc update, nhay sang buoc 3
+# 3. Neu Y:
+#    a. Dung Windows Update services
+#    b. Xoa cache trong SoftwareDistribution\Download va DataStore
+#    c. Khoi dong lai services
+#    d. Quet va cai updates nhu binh thuong

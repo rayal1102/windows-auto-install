@@ -1,0 +1,289 @@
+{
+  "essential_apps": {
+    "description": "Phan mem co ban (nen cai)",
+    "apps": [
+      {
+        "name": "UniKey",
+        "id": "UniKey.UniKey",
+        "category": "Utilities",
+        "description": "Go tieng Viet"
+      },
+      {
+        "name": "WinRAR",
+        "id": "RARLab.WinRAR",
+        "category": "Utilities",
+        "description": "Giai nen file"
+      },
+      {
+        "name": "7-Zip",
+        "id": "7zip.7zip",
+        "category": "Utilities",
+        "description": "Giai nen file (mien phi)"
+      },
+      {
+        "name": "Foxit Reader",
+        "id": "Foxit.FoxitReader",
+        "category": "Office",
+        "description": "Doc PDF"
+      },
+      {
+        "name": "Java Runtime",
+        "id": "Oracle.JavaRuntimeEnvironment",
+        "category": "Development",
+        "description": "Chay ung dung Java"
+      },
+      {
+        "name": "Nilesoft Shell",
+        "id": "Nilesoft.Shell",
+        "category": "Utilities",
+        "description": "Menu chuot phai tang cuong"
+      },
+      {
+        "name": "Flow Launcher",
+        "id": "Flow-Launcher.Flow-Launcher",
+        "category": "Utilities",
+        "description": "Tim kiem nhanh"
+      },
+      {
+        "name": "Everything",
+        "id": "voidtools.Everything",
+        "category": "Utilities",
+        "description": "Tim kiem file cuc nhanh"
+      },
+      {
+        "name": "Notepad++",
+        "id": "Notepad++.Notepad++",
+        "category": "Development",
+        "description": "Trinh soan thao text"
+      },
+      {
+        "name": "Google Chrome",
+        "id": "Google.Chrome",
+        "category": "Browsers",
+        "description": "Trinh duyet web"
+      },
+      {
+        "name": "VC++ 2015+ x86",
+        "id": "Microsoft.VCRedist.2015+.x86",
+        "category": "Runtime",
+        "description": "Thu vien C++ 32-bit"
+      },
+      {
+        "name": "VC++ 2015+ x64",
+        "id": "Microsoft.VCRedist.2015+.x64",
+        "category": "Runtime",
+        "description": "Thu vien C++ 64-bit"
+      },
+      {
+        "name": "VC++ 2005 x64",
+        "id": "Microsoft.VCRedist.2005.x64",
+        "category": "Runtime",
+        "description": "Thu vien C++ 2005 64-bit"
+      },
+      {
+        "name": "VC++ 2005 x86",
+        "id": "Microsoft.VCRedist.2005.x86",
+        "category": "Runtime",
+        "description": "Thu vien C++ 2005 32-bit"
+      }
+    ]
+  },
+  "optional_apps": {
+    "description": "Phan mem tuy chon",
+    "categories": {
+      "Browsers": [
+        {
+          "name": "Firefox",
+          "id": "Mozilla.Firefox",
+          "description": "Trinh duyet Mozilla"
+        },
+        {
+          "name": "Brave",
+          "id": "Brave.Brave",
+          "description": "Trinh duyet bao mat"
+        },
+        {
+          "name": "Microsoft Edge",
+          "id": "Microsoft.Edge",
+          "description": "Trinh duyet Microsoft"
+        },
+        {
+          "name": "Opera",
+          "id": "Opera.Opera",
+          "description": "Trinh duyet Opera"
+        }
+      ],
+      "Development": [
+        {
+          "name": "Visual Studio Code",
+          "id": "Microsoft.VisualStudioCode",
+          "description": "Code editor"
+        },
+        {
+          "name": "Git",
+          "id": "Git.Git",
+          "description": "Version control"
+        },
+        {
+          "name": "Python",
+          "id": "Python.Python.3.12",
+          "description": "Ngon ngu lap trinh Python"
+        },
+        {
+          "name": "Node.js",
+          "id": "OpenJS.NodeJS",
+          "description": "JavaScript runtime"
+        },
+        {
+          "name": "Docker Desktop",
+          "id": "Docker.DockerDesktop",
+          "description": "Container platform"
+        }
+      ],
+      "Media": [
+        {
+          "name": "VLC Media Player",
+          "id": "VideoLAN.VLC",
+          "description": "Phat video/audio"
+        },
+        {
+          "name": "Spotify",
+          "id": "Spotify.Spotify",
+          "description": "Nghe nhac"
+        },
+        {
+          "name": "OBS Studio",
+          "id": "OBSProject.OBSStudio",
+          "description": "Quay man hinh"
+        },
+        {
+          "name": "Audacity",
+          "id": "Audacity.Audacity",
+          "description": "Chinh sua audio"
+        }
+      ],
+      "Communication": [
+        {
+          "name": "Discord",
+          "id": "Discord.Discord",
+          "description": "Chat gaming"
+        },
+        {
+          "name": "Telegram",
+          "id": "Telegram.TelegramDesktop",
+          "description": "Nhan tin"
+        },
+        {
+          "name": "Zoom",
+          "id": "Zoom.Zoom",
+          "description": "Video call"
+        },
+        {
+          "name": "Microsoft Teams",
+          "id": "Microsoft.Teams",
+          "description": "Hop online"
+        },
+        {
+          "name": "Slack",
+          "id": "SlackTechnologies.Slack",
+          "description": "Chat cong viec"
+        }
+      ],
+      "Utilities": [
+        {
+          "name": "PowerToys",
+          "id": "Microsoft.PowerToys",
+          "description": "Tien ich Windows"
+        },
+        {
+          "name": "ShareX",
+          "id": "ShareX.ShareX",
+          "description": "Chup anh man hinh"
+        },
+        {
+          "name": "qBittorrent",
+          "id": "qBittorrent.qBittorrent",
+          "description": "Torrent client"
+        },
+        {
+          "name": "Revo Uninstaller",
+          "id": "RevoUninstaller.RevoUninstaller",
+          "description": "Go cai dat phan mem"
+        },
+        {
+          "name": "CPU-Z",
+          "id": "CPUID.CPU-Z",
+          "description": "Thong tin CPU"
+        },
+        {
+          "name": "HWMonitor",
+          "id": "CPUID.HWMonitor",
+          "description": "Theo doi nhiet do"
+        }
+      ],
+      "Office": [
+        {
+          "name": "LibreOffice",
+          "id": "TheDocumentFoundation.LibreOffice",
+          "description": "Office mien phi"
+        },
+        {
+          "name": "Notion",
+          "id": "Notion.Notion",
+          "description": "Ghi chu"
+        },
+        {
+          "name": "Obsidian",
+          "id": "Obsidian.Obsidian",
+          "description": "Ghi chu Markdown"
+        }
+      ],
+      "Gaming": [
+        {
+          "name": "Steam",
+          "id": "Valve.Steam",
+          "description": "Game platform"
+        },
+        {
+          "name": "Epic Games Launcher",
+          "id": "EpicGames.EpicGamesLauncher",
+          "description": "Epic Games store"
+        },
+        {
+          "name": "EA App",
+          "id": "ElectronicArts.EADesktop",
+          "description": "EA Games store"
+        }
+      ],
+      "Security": [
+        {
+          "name": "Malwarebytes",
+          "id": "Malwarebytes.Malwarebytes",
+          "description": "Diet virus"
+        },
+        {
+          "name": "Bitwarden",
+          "id": "Bitwarden.Bitwarden",
+          "description": "Quan ly mat khau"
+        }
+      ],
+      "Design": [
+        {
+          "name": "GIMP",
+          "id": "GIMP.GIMP",
+          "description": "Chinh sua anh"
+        },
+        {
+          "name": "Inkscape",
+          "id": "Inkscape.Inkscape",
+          "description": "Ve vector"
+        },
+        {
+          "name": "Blender",
+          "id": "BlenderFoundation.Blender",
+          "description": "3D modeling"
+        }
+      ]
+    }
+  }
+}

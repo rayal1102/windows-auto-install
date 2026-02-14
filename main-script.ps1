@@ -234,82 +234,341 @@ if (-not $skipUpdate) {
 Write-Log "`n[3/4] CAI PHAN MEM" "WARNING"
 Write-Log "==================`n"
 
-$apps = @{
-    "UniKey"="UniKey.UniKey"
-    "WinRAR"="RARLab.WinRAR"
-    "7-Zip"="7zip.7zip"
-    "Foxit Reader"="Foxit.FoxitReader"
-    "Java"="Oracle.JavaRuntimeEnvironment"
-    "Nilesoft Shell"="Nilesoft.Shell"
-    "Flow Launcher"="Flow-Launcher.Flow-Launcher"
-    "Everything"="voidtools.Everything"
-    "Notepad++"="Notepad++.Notepad++"
-    "Chrome"="Google.Chrome"
-    "VC++ 2015+ x86"="Microsoft.VCRedist.2015+.x86"
-    "VC++ 2015+ x64"="Microsoft.VCRedist.2015+.x64"
-    "VC++ 2005 x64"="Microsoft.VCRedist.2005.x64"
-    "VC++ 2005 x86"="Microsoft.VCRedist.2005.x86"
+# Tai danh sach apps tu file JSON
+$appsJsonUrl = "https://raw.githubusercontent.com/YOUR_USERNAME/windows-auto-install/main/apps.json"
+$appsJsonPath = "$env:TEMP\apps.json"
+
+Write-Log "Tai danh sach phan mem..." "INFO"
+try {
+    Invoke-WebRequest -Uri $appsJsonUrl -OutFile $appsJsonPath -UseBasicParsing | Out-Null
+    $appsConfig = Get-Content $appsJsonPath -Raw | ConvertFrom-Json
+    Write-Log "  [OK] Da tai danh sach`n" "SUCCESS"
+} catch {
+    Write-Log "  [LOI] Khong tai duoc danh sach, dung danh sach mac dinh" "WARNING"
+    $appsConfig = @{
+        essential_apps = @{
+            apps = @(
+                @{name="UniKey"; id="UniKey.UniKey"; description="Go tieng Viet"},
+                @{name="WinRAR"; id="RARLab.WinRAR"; description="Giai nen file"},
+                @{name="7-Zip"; id="7zip.7zip"; description="Giai nen mien phi"},
+                @{name="Chrome"; id="Google.Chrome"; description="Trinh duyet"}
+            )
+        }
+    } | ConvertTo-Json -Depth 5 | ConvertFrom-Json
 }
 
-$success = 0
-$updated = 0
-$failed = 0
-$i = 0
+# Tai module GUI
+$guiModuleUrl = "https://raw.githubusercontent.com/YOUR_USERNAME/windows-auto-install/main/AppSelector.psm1"
+$guiModulePath = "$env:TEMP\AppSelector.psm1"
 
-foreach ($app in $apps.GetEnumerator()) {
-    $i++
-    Write-Log "[$i/$($apps.Count)] $($app.Key)..." "INFO"
-    
-    # Kiem tra app da cai chua
-    $checkResult = & $winget list --id $app.Value --exact 2>&1
-    $isInstalled = $checkResult -match $app.Value
+try {
+    Invoke-WebRequest -Uri $guiModuleUrl -OutFile $guiModulePath -UseBasicParsing | Out-Null
+    Import-Module $guiModulePath -Force
+    $useGUI = $true
+} catch {
+    Write-Log "Khong tai duoc GUI module, dung che do text" "WARNING"
+    $useGUI = $false
+}
+
+# Hien thi va chon apps
+$essentialApps = $appsConfig.essential_apps.apps
+$selectedEssential = @()
+
+if ($useGUI) {
+    Write-Log "Mo giao dien chon phan mem..." "INFO"
+    Write-Host ""
+    Write-Host ">>> DANG MO CUA SO CHON PHAN MEM <<<" -ForegroundColor Yellow
+    Write-Host "    Vui long chon apps trong cua so moi mo ra`n" -ForegroundColor Cyan
     
     try {
-        if ($isInstalled) {
-            # Da cai roi -> Update
-            Write-Log "  → Da cai, dang cap nhat..." "INFO"
-            & $winget upgrade --id $app.Value --source winget --silent --accept-source-agreements --accept-package-agreements 2>&1 | Out-Null
-            
-            if ($LASTEXITCODE -eq 0) {
-                Write-Log "  [OK] Cap nhat thanh cong" "SUCCESS"
-                $updated++
-                $success++
-            } elseif ($LASTEXITCODE -eq -1978335189) {
-                # Code nay = "No applicable update found"
-                Write-Log "  [OK] Da la phien ban moi nhat" "SUCCESS"
-                $success++
-            } else {
-                Write-Log "  [LOI] Loi cap nhat (Code: $LASTEXITCODE)" "ERROR"
-                $failed++
-            }
+        $selectedEssential = Show-AppSelector -Apps $essentialApps -Title "CHON PHAN MEM CO BAN" -Description "Tick chon cac phan mem ban muon cai dat"
+        
+        if ($selectedEssential.Count -gt 0) {
+            Write-Log "Da chon $($selectedEssential.Count)/$($essentialApps.Count) phan mem`n" "INFO"
         } else {
-            # Chua cai -> Install
-            Write-Log "  → Chua cai, dang cai dat..." "INFO"
-            & $winget install -e --id $app.Value --source winget --silent --accept-source-agreements --accept-package-agreements 2>&1 | Out-Null
-            
-            if ($LASTEXITCODE -eq 0) {
-                Write-Log "  [OK] Cai dat thanh cong" "SUCCESS"
-                $success++
-            } else {
-                Write-Log "  [LOI] Loi cai dat (Code: $LASTEXITCODE)" "ERROR"
-                $failed++
-            }
+            Write-Log "Khong chon phan mem nao`n" "WARNING"
         }
     } catch {
-        Write-Log "  [LOI] $($_.Exception.Message)" "ERROR"
-        $failed++
+        Write-Log "Loi GUI: $($_.Exception.Message)" "ERROR"
+        Write-Log "Chuyen sang che do text...`n" "WARNING"
+        $useGUI = $false
     }
 }
 
-Write-Log "`nTong ket phan mem:" "INFO"
-Write-Log "  - Thanh cong: $success/$($apps.Count)" "SUCCESS"
-if ($updated -gt 0) {
-    Write-Log "  - Da cap nhat: $updated" "INFO"
+# Fallback: Text mode neu GUI khong hoat dong
+if (-not $useGUI -or $selectedEssential.Count -eq 0) {
+    Write-Log "PHAN MEM CO BAN (Khuyến nghị):" "WARNING"
+    Write-Host ""
+    
+    for ($i = 0; $i -lt $essentialApps.Count; $i++) {
+        $app = $essentialApps[$i]
+        Write-Host "  [$($i+1)] $($app.name)" -ForegroundColor Cyan
+        if ($app.description) {
+            Write-Host "      $($app.description)" -ForegroundColor Gray
+        }
+    }
+    
+    Write-Host ""
+    Write-Host "HUONG DAN:" -ForegroundColor Yellow
+    Write-Host "  - Nhap so thu tu cach nhau boi dau phay (vd: 1,2,5,10)" -ForegroundColor Cyan
+    Write-Host "  - Nhap 'ALL' de chon tat ca" -ForegroundColor Cyan
+    Write-Host "  - Bam Enter de chon tat ca`n" -ForegroundColor Cyan
+    
+    $essentialChoice = Read-Host "Chon phan mem co ban"
+    
+    if (-not $essentialChoice -or $essentialChoice.Trim().ToLower() -eq "all") {
+        $selectedEssential = $essentialApps
+        Write-Log "Chon tat ca $($essentialApps.Count) phan mem co ban`n" "INFO"
+    } else {
+        $selectedEssential = @()
+        $indices = $essentialChoice -split "," | ForEach-Object { $_.Trim() }
+        foreach ($idx in $indices) {
+            if ($idx -match '^\d+$') {
+                $arrayIdx = [int]$idx - 1
+                if ($arrayIdx -ge 0 -and $arrayIdx -lt $essentialApps.Count) {
+                    $selectedEssential += $essentialApps[$arrayIdx]
+                }
+            }
+        }
+        Write-Log "Chon $($selectedEssential.Count)/$($essentialApps.Count) phan mem co ban`n" "INFO"
+    }
 }
-if ($failed -gt 0) {
-    Write-Log "  - That bai: $failed" "WARNING"
+
+# Cai dat cac apps da chon
+if ($selectedEssential.Count -gt 0) {
+    Write-Log "Bat dau cai dat phan mem co ban..." "WARNING"
+    Write-Host ""
+    
+    $success = 0
+    $updated = 0
+    $failed = 0
+    
+    for ($i = 0; $i -lt $selectedEssential.Count; $i++) {
+        $app = $selectedEssential[$i]
+        Write-Log "[$($i+1)/$($selectedEssential.Count)] $($app.name)..." "INFO"
+        
+        $checkResult = & $winget list --id $app.id --exact 2>&1
+        $isInstalled = $checkResult -match $app.id
+        
+        try {
+            if ($isInstalled) {
+                Write-Log "  → Da cai, dang cap nhat..." "INFO"
+                & $winget upgrade --id $app.id --source winget --silent --accept-source-agreements --accept-package-agreements 2>&1 | Out-Null
+                
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Log "  [OK] Cap nhat thanh cong" "SUCCESS"
+                    $updated++
+                    $success++
+                } elseif ($LASTEXITCODE -eq -1978335189) {
+                    Write-Log "  [OK] Da la phien ban moi nhat" "SUCCESS"
+                    $success++
+                } else {
+                    Write-Log "  [LOI] Loi cap nhat" "ERROR"
+                    $failed++
+                }
+            } else {
+                Write-Log "  → Chua cai, dang cai dat..." "INFO"
+                & $winget install -e --id $app.id --source winget --silent --accept-source-agreements --accept-package-agreements 2>&1 | Out-Null
+                
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Log "  [OK] Cai dat thanh cong" "SUCCESS"
+                    $success++
+                } else {
+                    Write-Log "  [LOI] Loi cai dat" "ERROR"
+                    $failed++
+                }
+            }
+        } catch {
+            Write-Log "  [LOI] $($_.Exception.Message)" "ERROR"
+            $failed++
+        }
+    }
+    
+    Write-Host ""
+    Write-Log "Tong ket phan mem co ban:" "INFO"
+    Write-Log "  - Thanh cong: $success/$($selectedEssential.Count)" "SUCCESS"
+    if ($updated -gt 0) {
+        Write-Log "  - Da cap nhat: $updated" "INFO"
+    }
+    if ($failed -gt 0) {
+        Write-Log "  - That bai: $failed" "WARNING"
+    }
+    Write-Host ""
+} else {
+    Write-Log "Khong chon phan mem nao`n" "WARNING"
 }
-Write-Host ""
+
+# ===================================================================
+# BONUS: CHON THEM PHAN MEM TUY CHON
+# ===================================================================
+Write-Log "`n[BONUS] CHON THEM PHAN MEM" "WARNING"
+Write-Log "==================`n"
+
+Write-Log "Ban co muon cai them phan mem khac khong?" "INFO"
+$wantMore = Read-Host "Chon them phan mem? (Y/N)"
+
+if ($wantMore -eq 'Y' -or $wantMore -eq 'y') {
+    Write-Host ""
+    
+    # Lay danh sach optional apps
+    $allOptionalApps = @()
+    $optionalCategories = $appsConfig.optional_apps.categories
+    
+    foreach ($category in $optionalCategories.PSObject.Properties) {
+        $categoryName = $category.Name
+        $apps = $category.Value
+        
+        foreach ($app in $apps) {
+            $allOptionalApps += @{
+                name = $app.name
+                id = $app.id
+                description = "[$categoryName] $($app.description)"
+            }
+        }
+    }
+    
+    $selectedOptional = @()
+    
+    if ($useGUI) {
+        Write-Log "Mo giao dien chon phan mem tuy chon..." "INFO"
+        Write-Host ""
+        Write-Host ">>> DANG MO CUA SO CHON PHAN MEM TUY CHON <<<" -ForegroundColor Yellow
+        Write-Host "    Vui long chon apps trong cua so moi mo ra`n" -ForegroundColor Cyan
+        
+        try {
+            $selectedOptional = Show-AppSelector -Apps $allOptionalApps -Title "CHON PHAN MEM TUY CHON" -Description "Tick chon cac phan mem ban muon cai them"
+            
+            if ($selectedOptional.Count -gt 0) {
+                Write-Log "Da chon $($selectedOptional.Count) phan mem tuy chon`n" "INFO"
+            } else {
+                Write-Log "Khong chon phan mem nao`n" "INFO"
+            }
+        } catch {
+            Write-Log "Loi GUI: $($_.Exception.Message)" "ERROR"
+            $selectedOptional = @()
+        }
+    } else {
+        # Text mode fallback
+        Write-Log "Hien thi danh sach phan mem tuy chon..." "INFO"
+        Write-Host ""
+        
+        Write-Host "DANH SACH PHAN MEM TUY CHON" -ForegroundColor Yellow
+        Write-Host "===========================`n" -ForegroundColor Yellow
+        
+        $allOptionalAppsText = @{}
+        foreach ($category in $optionalCategories.PSObject.Properties) {
+            $categoryName = $category.Name
+            $apps = $category.Value
+            
+            Write-Host "$categoryName" -ForegroundColor Cyan
+            for ($i = 0; $i -lt $apps.Count; $i++) {
+                $app = $apps[$i]
+                Write-Host "  [$($i+1)] $($app.name)" -ForegroundColor Gray
+                if ($app.description) {
+                    Write-Host "      $($app.description)" -ForegroundColor DarkGray
+                }
+                $allOptionalAppsText[$app.name] = $app.id
+            }
+            Write-Host ""
+        }
+        
+        Write-Host "HUONG DAN:" -ForegroundColor Yellow
+        Write-Host "  - Nhap ten phan mem (vd: Firefox, Discord)" -ForegroundColor Cyan
+        Write-Host "  - Nhap nhieu phan mem cach nhau boi dau phay" -ForegroundColor Cyan
+        Write-Host "  - Nhap 'ALL' de chon tat ca" -ForegroundColor Cyan
+        Write-Host "  - Bam Enter de bo qua`n" -ForegroundColor Cyan
+        
+        $selection = Read-Host "Chon phan mem"
+        
+        if ($selection -and $selection.Trim() -ne "") {
+            if ($selection.Trim().ToLower() -eq "all") {
+                $selectedOptional = $allOptionalApps
+            } else {
+                $selections = $selection -split ","
+                foreach ($sel in $selections) {
+                    $appName = $sel.Trim()
+                    if ($allOptionalAppsText.ContainsKey($appName)) {
+                        $selectedOptional += @{
+                            name = $appName
+                            id = $allOptionalAppsText[$appName]
+                        }
+                    } else {
+                        Write-Log "  [SKIP] Khong tim thay: $appName" "WARNING"
+                    }
+                }
+            }
+        }
+    }
+    
+    if ($selectedOptional.Count -gt 0) {
+        Write-Host ""
+        Write-Log "Dang cai $($selectedOptional.Count) phan mem..." "WARNING"
+        Write-Host ""
+        
+        $bonusSuccess = 0
+        $bonusFailed = 0
+        $bonusUpdated = 0
+        
+        for ($bonusIdx = 0; $bonusIdx -lt $selectedOptional.Count; $bonusIdx++) {
+            $app = $selectedOptional[$bonusIdx]
+            $appName = $app.name
+            $appId = $app.id
+            
+            Write-Log "[$($bonusIdx+1)/$($selectedOptional.Count)] $appName..." "INFO"
+            
+            $checkResult = & $winget list --id $appId --exact 2>&1
+            $isInstalled = $checkResult -match $appId
+            
+            try {
+                if ($isInstalled) {
+                    Write-Log "  → Da cai, dang cap nhat..." "INFO"
+                    & $winget upgrade --id $appId --source winget --silent --accept-source-agreements --accept-package-agreements 2>&1 | Out-Null
+                    
+                    if ($LASTEXITCODE -eq 0) {
+                        Write-Log "  [OK] Cap nhat thanh cong" "SUCCESS"
+                        $bonusSuccess++
+                        $bonusUpdated++
+                    } elseif ($LASTEXITCODE -eq -1978335189) {
+                        Write-Log "  [OK] Da la phien ban moi nhat" "SUCCESS"
+                        $bonusSuccess++
+                    } else {
+                        Write-Log "  [LOI] Loi cap nhat" "ERROR"
+                        $bonusFailed++
+                    }
+                } else {
+                    Write-Log "  → Chua cai, dang cai dat..." "INFO"
+                    & $winget install -e --id $appId --source winget --silent --accept-source-agreements --accept-package-agreements 2>&1 | Out-Null
+                    
+                    if ($LASTEXITCODE -eq 0) {
+                        Write-Log "  [OK] Cai dat thanh cong" "SUCCESS"
+                        $bonusSuccess++
+                    } else {
+                        Write-Log "  [LOI] Loi cai dat" "ERROR"
+                        $bonusFailed++
+                    }
+                }
+            } catch {
+                Write-Log "  [LOI] $($_.Exception.Message)" "ERROR"
+                $bonusFailed++
+            }
+        }
+        
+        Write-Host ""
+        Write-Log "Tong ket phan mem tuy chon:" "INFO"
+        Write-Log "  - Thanh cong: $bonusSuccess/$($selectedOptional.Count)" "SUCCESS"
+        if ($bonusUpdated -gt 0) {
+            Write-Log "  - Da cap nhat: $bonusUpdated" "INFO"
+        }
+        if ($bonusFailed -gt 0) {
+            Write-Log "  - That bai: $bonusFailed" "WARNING"
+        }
+        Write-Host ""
+    } else {
+        Write-Log "Khong chon phan mem nao`n" "INFO"
+    }
+} else {
+    Write-Log "Bo qua cai them phan mem`n" "INFO"
+}
 
 # ===================================================================
 # BUOC 4: CAI OFFICE 365 (CHI WORD, EXCEL, POWERPOINT)
