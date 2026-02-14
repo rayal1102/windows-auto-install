@@ -1,36 +1,147 @@
 <#
 .SYNOPSIS
-    Windows Auto Install - One-liner Installer
+    Windows Auto Install - Bootstrap Script
 .DESCRIPTION
-    Script nay duoc thiet ke de chay qua irm (Invoke-RestMethod)
-    Cach dung: irm https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/install.ps1 | iex
-.NOTES
-    Version: 3.0 - GitHub Ready
+    BUOC 1: Chay tren PowerShell thong thuong
+    - Cai WinGet va Windows Terminal
+    - Tao script chinh
+    - Mo Windows Terminal moi
+    
+    BUOC 2: Chay trong Terminal moi
+    - Go bloatware
+    - Cai Windows Updates
+    - Cai phan mem
+.USAGE
+    irm YOUR_GITHUB_LINK | iex
 #>
 
-# Bat dau - Khong can #Requires vi chay qua irm
-$Host.UI.RawUI.WindowTitle = "Windows Auto Install - v3.0"
+Set-ExecutionPolicy Bypass -Scope Process -Force
+$ProgressPreference = 'SilentlyContinue'
+$ErrorActionPreference = 'SilentlyContinue'
 
-# Kiem tra Admin
-$IsAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-if (-not $IsAdmin) {
-    Write-Host "`n[LOI] Script can quyen Administrator!" -ForegroundColor Red
-    Write-Host "Cach su dung dung:" -ForegroundColor Yellow
-    Write-Host "  1. Mo PowerShell as Administrator" -ForegroundColor Cyan
-    Write-Host "  2. Chay lai lenh: irm YOUR_GITHUB_LINK | iex`n" -ForegroundColor Cyan
-    Start-Sleep 5
-    Exit 1
+Clear-Host
+Write-Host "`n========================================" -ForegroundColor Cyan
+Write-Host "  WINDOWS AUTO INSTALL - V3.0" -ForegroundColor Yellow
+Write-Host "========================================`n" -ForegroundColor Cyan
+
+# ===================================================================
+# BUOC 1: KIEM TRA INTERNET
+# ===================================================================
+Write-Host "[1/3] Kiem tra Internet..." -ForegroundColor Yellow
+$canConnect = $false
+foreach ($testHost in @('8.8.8.8', '1.1.1.1')) {
+    if (Test-Connection -ComputerName $testHost -Count 2 -Quiet) {
+        $canConnect = $true
+        break
+    }
 }
 
+if (-not $canConnect) {
+    Write-Host "      [LOI] Khong co ket noi Internet!`n" -ForegroundColor Red
+    Read-Host "Bam Enter de thoat"
+    Exit 1
+}
+Write-Host "      [OK] Ket noi tot`n" -ForegroundColor Green
+
+# ===================================================================
+# BUOC 2: TIM VA CAI WINGET
+# ===================================================================
+Write-Host "[2/3] Kiem tra WinGet..." -ForegroundColor Yellow
+
+$winget = $null
+$paths = @(
+    "$env:LOCALAPPDATA\Microsoft\WindowsApps\winget.exe",
+    "C:\Program Files\WindowsApps\*\winget.exe"
+)
+
+foreach ($p in $paths) {
+    $f = Get-Item $p -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($f) { $winget = $f.FullName; break }
+}
+
+if (-not $winget) {
+    $cmd = Get-Command winget -ErrorAction SilentlyContinue
+    if ($cmd) { $winget = $cmd.Source }
+}
+
+if (-not $winget) {
+    Write-Host "      Dang cai dat WinGet..." -ForegroundColor Cyan
+    try {
+        # VCLibs
+        Write-Host "      - Tai VCLibs..." -ForegroundColor Gray
+        $url = "https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx"
+        $tmp = "$env:TEMP\vc.appx"
+        Invoke-WebRequest -Uri $url -OutFile $tmp -UseBasicParsing | Out-Null
+        Add-AppxPackage -Path $tmp | Out-Null
+        Remove-Item $tmp -Force
+        
+        # UI.Xaml
+        Write-Host "      - Tai UI.Xaml..." -ForegroundColor Gray
+        $url = "https://github.com/microsoft/microsoft-ui-xaml/releases/download/v2.8.6/Microsoft.UI.Xaml.2.8.x64.appx"
+        $tmp = "$env:TEMP\ui.appx"
+        Invoke-WebRequest -Uri $url -OutFile $tmp -UseBasicParsing | Out-Null
+        Add-AppxPackage -Path $tmp | Out-Null
+        Remove-Item $tmp -Force
+        
+        # WinGet
+        Write-Host "      - Tai WinGet..." -ForegroundColor Gray
+        $url = "https://aka.ms/getwinget"
+        $tmp = "$env:TEMP\wg.msixbundle"
+        Invoke-WebRequest -Uri $url -OutFile $tmp -UseBasicParsing | Out-Null
+        Add-AppxPackage -Path $tmp | Out-Null
+        Remove-Item $tmp -Force
+        
+        Start-Sleep 5
+        $winget = "$env:LOCALAPPDATA\Microsoft\WindowsApps\winget.exe"
+        Write-Host "      [OK] WinGet cai xong" -ForegroundColor Green
+    } catch {
+        Write-Host "      [LOI] Khong cai duoc WinGet`n" -ForegroundColor Red
+        Read-Host "Bam Enter de thoat"
+        Exit 1
+    }
+} else {
+    Write-Host "      [OK] WinGet da co san" -ForegroundColor Green
+}
+
+# Sua loi certificate
+Write-Host "      Sua loi certificate..." -ForegroundColor Gray
+& $winget source reset --force 2>&1 | Out-Null
+Start-Sleep 2
+& $winget source update 2>&1 | Out-Null
+
+# ===================================================================
+# BUOC 3: CAI WINDOWS TERMINAL
+# ===================================================================
+Write-Host "`n[3/3] Cai Windows Terminal..." -ForegroundColor Yellow
+
+$wtInstalled = Get-AppxPackage -Name "Microsoft.WindowsTerminal" -ErrorAction SilentlyContinue
+
+if (-not $wtInstalled) {
+    Write-Host "      Dang tai va cai..." -ForegroundColor Cyan
+    & $winget install Microsoft.WindowsTerminal -e --source winget --silent --accept-source-agreements --accept-package-agreements 2>&1 | Out-Null
+    Start-Sleep 3
+    Write-Host "      [OK] Da cai xong" -ForegroundColor Green
+} else {
+    Write-Host "      [OK] Da co san" -ForegroundColor Green
+}
+
+# ===================================================================
+# TAO SCRIPT CHINH (CHAY TRONG TERMINAL)
+# ===================================================================
+Write-Host "`nDang chuan bi script chinh..." -ForegroundColor Yellow
+
+$mainScript = "$env:TEMP\windows_install_main.ps1"
+
+$scriptContent = @'
+#Requires -RunAsAdministrator
 Set-ExecutionPolicy Bypass -Scope Process -Force
 $ProgressPreference = 'SilentlyContinue'
 $ErrorActionPreference = 'Continue'
 
-# Cau hinh
+$Host.UI.RawUI.WindowTitle = "Windows Auto Install - Main"
 $LogFile = "$env:TEMP\WindowsAutoInstall_$(Get-Date -Format 'yyyyMMdd_HHmmss').log"
 $MaxUpdateSizeGB = 10
 
-# Function Write-Log
 function Write-Log {
     param([string]$Message, [string]$Level = 'INFO')
     $Timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
@@ -43,38 +154,15 @@ function Write-Log {
     }
 }
 
-# Function Test Internet
-function Test-Internet {
-    foreach ($testHost in @('8.8.8.8', '1.1.1.1')) {
-        if (Test-Connection -ComputerName $testHost -Count 2 -Quiet) { return $true }
-    }
-    return $false
-}
-
 Clear-Host
 Write-Log "`n========================================"
-Write-Log "  WINDOWS AUTO INSTALL - V3.0"
+Write-Log "  WINDOWS AUTO INSTALL - TERMINAL"
 Write-Log "========================================`n"
 Write-Log "Log: $LogFile" "INFO"
 
-# Kiem tra Internet
-if (-not (Test-Internet)) {
-    Write-Log "`n[LOI] Khong co ket noi Internet!`n" "ERROR"
-    Start-Sleep 5
-    Exit 1
-}
-
-# ===================================================================
-# BUOC 1: TIM VA SUA WINGET
-# ===================================================================
-Write-Log "`n[1/5] KIEM TRA WINGET" "WARNING"
-Write-Log "==================`n"
-
+# Tim WinGet
 $winget = $null
-$paths = @(
-    "$env:LOCALAPPDATA\Microsoft\WindowsApps\winget.exe",
-    "C:\Program Files\WindowsApps\*\winget.exe"
-)
+$paths = @("$env:LOCALAPPDATA\Microsoft\WindowsApps\winget.exe", "C:\Program Files\WindowsApps\*\winget.exe")
 foreach ($p in $paths) {
     $f = Get-Item $p -EA SilentlyContinue | Select -First 1
     if ($f) { $winget = $f.FullName; break }
@@ -84,52 +172,12 @@ if (-not $winget) {
     if ($cmd) { $winget = $cmd.Source }
 }
 
-if (-not $winget) {
-    Write-Log "Cai dat WinGet..." "WARNING"
-    try {
-        # VCLibs
-        $url = "https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx"
-        $tmp = "$env:TEMP\vc.appx"
-        Invoke-WebRequest -Uri $url -OutFile $tmp -UseBasicParsing
-        Add-AppxPackage -Path $tmp; Remove-Item $tmp -Force
-        
-        # UI.Xaml
-        $url = "https://github.com/microsoft/microsoft-ui-xaml/releases/download/v2.8.6/Microsoft.UI.Xaml.2.8.x64.appx"
-        $tmp = "$env:TEMP\ui.appx"
-        Invoke-WebRequest -Uri $url -OutFile $tmp -UseBasicParsing
-        Add-AppxPackage -Path $tmp; Remove-Item $tmp -Force
-        
-        # WinGet
-        $url = "https://aka.ms/getwinget"
-        $tmp = "$env:TEMP\wg.msixbundle"
-        Invoke-WebRequest -Uri $url -OutFile $tmp -UseBasicParsing
-        Add-AppxPackage -Path $tmp; Remove-Item $tmp -Force
-        
-        Start-Sleep 5
-        $winget = "$env:LOCALAPPDATA\Microsoft\WindowsApps\winget.exe"
-        Write-Log "  [OK] WinGet cai xong" "SUCCESS"
-    } catch {
-        Write-Log "  [LOI] Khong cai duoc WinGet`n" "ERROR"
-        Start-Sleep 5
-        Exit 1
-    }
-}
-
-Write-Log "  [OK] Path: $winget" "SUCCESS"
-
-# Sua loi certificate
-Write-Log "`nSua loi certificate..." "WARNING"
-try {
-    & $winget source reset --force 2>&1 | Out-Null
-    Start-Sleep 2
-    & $winget source update 2>&1 | Out-Null
-    Write-Log "  [OK] Da sua" "SUCCESS"
-} catch {}
+Write-Log "WinGet: $winget`n" "INFO"
 
 # ===================================================================
-# BUOC 2: GO BLOATWARE
+# BUOC 1: GO BLOATWARE
 # ===================================================================
-Write-Log "`n[2/5] GO BLOATWARE" "WARNING"
+Write-Log "[1/3] GO BLOATWARE" "WARNING"
 Write-Log "==================`n"
 
 $bloat = @{
@@ -168,12 +216,14 @@ foreach ($app in $bloat.GetEnumerator()) {
 Write-Log "`nDa go: $removed/$($bloat.Count)`n" "SUCCESS"
 
 # ===================================================================
-# BUOC 3: WINDOWS UPDATE
+# BUOC 2: WINDOWS UPDATE
 # ===================================================================
-Write-Log "`n[3/5] WINDOWS UPDATE" "WARNING"
+Write-Log "`n[2/3] WINDOWS UPDATE" "WARNING"
 Write-Log "==================`n"
 
 $skipUpdate = $false
+$needsReboot = $false
+$installed = 0
 
 # Cai NuGet
 try {
@@ -205,20 +255,32 @@ if (-not $skipUpdate) {
             Write-Log "  Tim thay: $($updates.Count) updates`n" "SUCCESS"
             
             $valid = @()
+            $skippedReboot = @()
+            
             foreach ($u in $updates) {
                 $sizeGB = [math]::Round($u.Size/1GB, 2)
                 $sizeMB = [math]::Round($u.Size/1MB, 0)
+                
                 if ($sizeGB -gt $MaxUpdateSizeGB) {
-                    Write-Log "  [SKIP] $($u.KB) (${sizeGB}GB)" "WARNING"
+                    Write-Log "  [SKIP] $($u.KB) (${sizeGB}GB - qua lon)" "WARNING"
+                    continue
+                }
+                
+                if ($u.RebootRequired) {
+                    $skippedReboot += $u
+                    Write-Log "  [SKIP] $($u.KB) (${sizeMB}MB - can restart)" "WARNING"
                 } else {
                     $valid += $u
-                    Write-Log "  [OK] $($u.KB) (${sizeMB}MB)" "INFO"
+                    Write-Log "  [CHON] $($u.KB) (${sizeMB}MB)" "INFO"
                 }
+            }
+            
+            if ($skippedReboot.Count -gt 0) {
+                Write-Log "`nBo qua $($skippedReboot.Count) updates can restart" "WARNING"
             }
             
             if ($valid.Count -gt 0) {
                 Write-Log "`nCai $($valid.Count) updates..." "WARNING"
-                $installed = 0
                 foreach ($u in $valid) {
                     try {
                         $r = Install-WindowsUpdate -KBArticleID $u.KB -MicrosoftUpdate -AcceptAll -IgnoreReboot -Confirm:$false -EA Stop
@@ -229,7 +291,14 @@ if (-not $skipUpdate) {
                     } catch {}
                 }
                 Write-Log "`nCai xong: $installed/$($valid.Count)`n" "SUCCESS"
+            } else {
+                Write-Log "`nKhong co update nao phu hop`n" "INFO"
             }
+            
+            if ($skippedReboot.Count -gt 0) {
+                $needsReboot = $true
+            }
+            
         } else {
             Write-Log "  [OK] He thong moi nhat`n" "SUCCESS"
         }
@@ -239,9 +308,9 @@ if (-not $skipUpdate) {
 }
 
 # ===================================================================
-# BUOC 4: CAI PHAN MEM
+# BUOC 3: CAI PHAN MEM
 # ===================================================================
-Write-Log "`n[4/5] CAI PHAN MEM" "WARNING"
+Write-Log "`n[3/3] CAI PHAN MEM" "WARNING"
 Write-Log "==================`n"
 
 $apps = @{
@@ -273,7 +342,7 @@ foreach ($app in $apps.GetEnumerator()) {
             Write-Log "  [OK]" "SUCCESS"
             $success++
         } else {
-            Write-Log "  [LOI] Code: $LASTEXITCODE" "ERROR"
+            Write-Log "  [LOI]" "ERROR"
         }
     } catch {
         Write-Log "  [LOI]" "ERROR"
@@ -292,5 +361,54 @@ Write-Log "  - Bloatware: $removed/$($bloat.Count)" $(if($removed -gt 0){'SUCCES
 Write-Log "  - Updates: $installed" $(if($installed -gt 0){'SUCCESS'}else{'INFO'})
 Write-Log "  - Phan mem: $success/$($apps.Count)" $(if($success -gt 0){'SUCCESS'}else{'INFO'})
 Write-Log "`nLog: $LogFile" "INFO"
-Write-Log "`nBam phim bat ky de thoat..." "INFO"
+
+if ($needsReboot) {
+    Write-Log "`n========================================" "WARNING"
+    Write-Log "  HE THONG CAN RESTART" "WARNING"
+    Write-Log "========================================`n" "WARNING"
+    Write-Log "Ly do: Co updates can restart de hoan tat" "INFO"
+    Write-Log "`nBan co muon restart ngay? (Y/N)" "WARNING"
+    
+    $response = Read-Host
+    if ($response -eq 'Y' -or $response -eq 'y') {
+        Write-Log "`nRestart trong 10 giay (Ctrl+C de huy)..." "WARNING"
+        Start-Sleep 3
+        shutdown /r /t 10 /c "Restart de hoan tat Windows Updates"
+    } else {
+        Write-Log "`nKhong restart. Hay restart sau!`n" "WARNING"
+    }
+}
+
+Write-Log "`nBam phim bat ky de dong..." "INFO"
 $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+'@
+
+$scriptContent | Out-File -FilePath $mainScript -Encoding UTF8 -Force
+Write-Host "      [OK] Script da san sang`n" -ForegroundColor Green
+
+# ===================================================================
+# MO WINDOWS TERMINAL
+# ===================================================================
+Write-Host "Mo Windows Terminal..." -ForegroundColor Yellow
+Write-Host "Cua so nay se DONG, theo doi cua so MOI`n" -ForegroundColor Cyan
+
+$wt = "$env:LOCALAPPDATA\Microsoft\WindowsApps\wt.exe"
+
+if (-not (Test-Path $wt)) {
+    Write-Host "[CANH BAO] Khong tim thay Terminal!" -ForegroundColor Red
+    Write-Host "Chay trong PowerShell thong thuong...`n" -ForegroundColor Yellow
+    Start-Sleep 3
+    & powershell.exe -NoExit -ExecutionPolicy Bypass -File $mainScript
+} else {
+    Write-Host "[OK] Khoi dong Terminal moi..." -ForegroundColor Green
+    Write-Host ">>> CUA SO NAY DONG SAU 3 GIAY <<<`n" -ForegroundColor Yellow
+    
+    Start-Sleep 3
+    
+    # Mo Terminal moi voi Admin
+    Start-Process $wt -ArgumentList "PowerShell -NoExit -ExecutionPolicy Bypass -File `"$mainScript`"" -Verb RunAs
+    
+    # Dong cua so cu
+    Start-Sleep 2
+    Exit
+}
