@@ -235,7 +235,7 @@ Write-Log "`n[3/4] CAI PHAN MEM" "WARNING"
 Write-Log "==================`n"
 
 # Tai danh sach apps tu file JSON
-$appsJsonUrl = "https://raw.githubusercontent.com/YOUR_USERNAME/windows-auto-install/main/apps.json"
+$appsJsonUrl = "https://raw.githubusercontent.com/rayal1102/windows-auto-install/refs/heads/main/apps.json"
 $appsJsonPath = "$env:TEMP\apps.json"
 
 Write-Log "Tai danh sach phan mem..." "INFO"
@@ -258,7 +258,7 @@ try {
 }
 
 # Tai module GUI
-$guiModuleUrl = "https://raw.githubusercontent.com/YOUR_USERNAME/windows-auto-install/main/AppSelector.psm1"
+$guiModuleUrl = "https://raw.githubusercontent.com/rayal1102/windows-auto-install/refs/heads/main/AppSelector.psm1"
 $guiModulePath = "$env:TEMP\AppSelector.psm1"
 
 try {
