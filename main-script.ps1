@@ -121,6 +121,7 @@ if (-not $skipUpdate) {
             
             $valid = @()
             $skippedReboot = @()
+            $skippedLarge = @()
             
             foreach ($u in $updates) {
                 # Xu ly truong hop Size = null hoac 0
@@ -131,11 +132,12 @@ if (-not $skipUpdate) {
                 # Hien thi kich thuoc
                 $sizeText = if ($sizeMB -gt 0) { "${sizeMB}MB" } else { "Unknown" }
                 
-                # Lay ten update (uu tien Title, neu khong co thi dung KB)
+                # Lay ten update
                 $updateName = if ($u.Title) { $u.Title } else { $u.KB }
                 
                 # Bo qua updates qua lon
-                if ($sizeGB -gt $MaxUpdateSizeGB) {
+                if ($size -gt 0 -and $sizeGB -gt $MaxUpdateSizeGB) {
+                    $skippedLarge += $u
                     Write-Log "  [SKIP] $updateName" "WARNING"
                     Write-Log "         Kich thuoc: ${sizeGB}GB (qua lon)" "WARNING"
                     continue
@@ -156,33 +158,60 @@ if (-not $skipUpdate) {
             if ($skippedReboot.Count -gt 0) {
                 Write-Log "`nBo qua $($skippedReboot.Count) updates can restart" "WARNING"
             }
+            if ($skippedLarge.Count -gt 0) {
+                Write-Log "Bo qua $($skippedLarge.Count) updates qua lon" "WARNING"
+            }
             
             if ($valid.Count -gt 0) {
                 Write-Log "`nBat dau cai $($valid.Count) updates..." "WARNING"
-                $currentUpdate = 0
-                foreach ($u in $valid) {
-                    $currentUpdate++
-                    $size = if ($u.Size) { $u.Size } else { 0 }
-                    $sizeMB = [math]::Round($size/1MB, 0)
-                    $sizeText = if ($sizeMB -gt 0) { "${sizeMB}MB" } else { "Unknown" }
-                    $updateName = if ($u.Title) { $u.Title } else { $u.KB }
+                Write-Log "Dang tai va cai dat tat ca cung luc (co the mat 5-15 phut)...`n" "INFO"
+                
+                try {
+                    # CAI TAT CA UPDATES CUNG LUC - GIONG CHAY THU CONG
+                    # Khong dung -KBArticleID vi mot so updates khong ho tro
+                    $result = Install-WindowsUpdate -MicrosoftUpdate -AcceptAll -IgnoreReboot -Confirm:$false -EA Stop
                     
-                    Write-Log "`n[$currentUpdate/$($valid.Count)] $updateName" "INFO"
-                    Write-Log "         KB: $($u.KB) | Kich thuoc: $sizeText" "INFO"
-                    Write-Log "         Dang cai dat..." "INFO"
-                    try {
-                        $r = Install-WindowsUpdate -KBArticleID $u.KB -MicrosoftUpdate -AcceptAll -IgnoreReboot -Confirm:$false -EA Stop
-                        if ($r) {
-                            Write-Log "         [OK] Cai thanh cong" "SUCCESS"
-                            $installed++
-                        } else {
-                            Write-Log "         [LOI] Cai that bai" "ERROR"
+                    if ($result) {
+                        # Dem so luong cai thanh cong
+                        $installed = ($result | Where-Object { $_.Result -eq 'Installed' -or $_.Result -eq 'Downloaded' }).Count
+                        
+                        Write-Log "`nChi tiet ket qua:" "INFO"
+                        foreach ($r in $result) {
+                            $status = if ($r.Result -eq 'Installed') { "SUCCESS" } else { "WARNING" }
+                            $title = if ($r.Title) { $r.Title } else { $r.KB }
+                            Write-Log "  [$($r.Result)] $title" $status
                         }
-                    } catch {
-                        Write-Log "         [LOI] $($_.Exception.Message)" "ERROR"
+                        
+                        Write-Log "`nTong ket: Cai thanh cong $installed/$($valid.Count) updates" "SUCCESS"
+                    } else {
+                        Write-Log "`nKhong co ket qua tra ve" "WARNING"
                     }
+                } catch {
+                    Write-Log "`n[LOI] Loi khi cai updates: $($_.Exception.Message)" "ERROR"
+                    Write-Log "Thu cai tung update rieng le..." "WARNING"
+                    
+                    # Neu cai tat ca that bai, thu tung cai mot
+                    $installed = 0
+                    $currentUpdate = 0
+                    foreach ($u in $valid) {
+                        $currentUpdate++
+                        $updateName = if ($u.Title) { $u.Title } else { $u.KB }
+                        
+                        Write-Log "`n[$currentUpdate/$($valid.Count)] $updateName" "INFO"
+                        try {
+                            $r = Install-WindowsUpdate -KBArticleID $u.KB -MicrosoftUpdate -AcceptAll -IgnoreReboot -Confirm:$false -EA Stop
+                            if ($r) {
+                                Write-Log "  [OK] Cai thanh cong" "SUCCESS"
+                                $installed++
+                            }
+                        } catch {
+                            Write-Log "  [LOI] $($_.Exception.Message)" "ERROR"
+                        }
+                    }
+                    Write-Log "`nTong ket: Cai thanh cong $installed/$($valid.Count) updates" "SUCCESS"
                 }
-                Write-Log "`nTong ket: Cai thanh cong $installed/$($valid.Count) updates`n" "SUCCESS"
+                
+                Write-Host ""
             } else {
                 Write-Log "`nKhong co update nao phu hop`n" "INFO"
             }
@@ -223,23 +252,64 @@ $apps = @{
 }
 
 $success = 0
+$updated = 0
+$failed = 0
 $i = 0
+
 foreach ($app in $apps.GetEnumerator()) {
     $i++
     Write-Log "[$i/$($apps.Count)] $($app.Key)..." "INFO"
+    
+    # Kiem tra app da cai chua
+    $checkResult = & $winget list --id $app.Value --exact 2>&1
+    $isInstalled = $checkResult -match $app.Value
+    
     try {
-        & $winget install -e --id $app.Value --source winget --silent --accept-source-agreements --accept-package-agreements 2>&1 | Out-Null
-        if ($LASTEXITCODE -eq 0) {
-            Write-Log "  [OK]" "SUCCESS"
-            $success++
+        if ($isInstalled) {
+            # Da cai roi -> Update
+            Write-Log "  → Da cai, dang cap nhat..." "INFO"
+            & $winget upgrade --id $app.Value --source winget --silent --accept-source-agreements --accept-package-agreements 2>&1 | Out-Null
+            
+            if ($LASTEXITCODE -eq 0) {
+                Write-Log "  [OK] Cap nhat thanh cong" "SUCCESS"
+                $updated++
+                $success++
+            } elseif ($LASTEXITCODE -eq -1978335189) {
+                # Code nay = "No applicable update found"
+                Write-Log "  [OK] Da la phien ban moi nhat" "SUCCESS"
+                $success++
+            } else {
+                Write-Log "  [LOI] Loi cap nhat (Code: $LASTEXITCODE)" "ERROR"
+                $failed++
+            }
         } else {
-            Write-Log "  [LOI]" "ERROR"
+            # Chua cai -> Install
+            Write-Log "  → Chua cai, dang cai dat..." "INFO"
+            & $winget install -e --id $app.Value --source winget --silent --accept-source-agreements --accept-package-agreements 2>&1 | Out-Null
+            
+            if ($LASTEXITCODE -eq 0) {
+                Write-Log "  [OK] Cai dat thanh cong" "SUCCESS"
+                $success++
+            } else {
+                Write-Log "  [LOI] Loi cai dat (Code: $LASTEXITCODE)" "ERROR"
+                $failed++
+            }
         }
     } catch {
-        Write-Log "  [LOI]" "ERROR"
+        Write-Log "  [LOI] $($_.Exception.Message)" "ERROR"
+        $failed++
     }
 }
-Write-Log "`nCai xong: $success/$($apps.Count)`n" "SUCCESS"
+
+Write-Log "`nTong ket phan mem:" "INFO"
+Write-Log "  - Thanh cong: $success/$($apps.Count)" "SUCCESS"
+if ($updated -gt 0) {
+    Write-Log "  - Da cap nhat: $updated" "INFO"
+}
+if ($failed -gt 0) {
+    Write-Log "  - That bai: $failed" "WARNING"
+}
+Write-Host ""
 
 # ===================================================================
 # BUOC 4: CAI OFFICE 365 (CHI WORD, EXCEL, POWERPOINT)
