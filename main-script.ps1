@@ -123,20 +123,33 @@ if (-not $skipUpdate) {
             $skippedReboot = @()
             
             foreach ($u in $updates) {
-                $sizeGB = [math]::Round($u.Size/1GB, 2)
-                $sizeMB = [math]::Round($u.Size/1MB, 0)
+                # Xu ly truong hop Size = null hoac 0
+                $size = if ($u.Size) { $u.Size } else { 0 }
+                $sizeGB = [math]::Round($size/1GB, 2)
+                $sizeMB = [math]::Round($size/1MB, 0)
                 
+                # Hien thi kich thuoc
+                $sizeText = if ($sizeMB -gt 0) { "${sizeMB}MB" } else { "Unknown" }
+                
+                # Lay ten update (uu tien Title, neu khong co thi dung KB)
+                $updateName = if ($u.Title) { $u.Title } else { $u.KB }
+                
+                # Bo qua updates qua lon
                 if ($sizeGB -gt $MaxUpdateSizeGB) {
-                    Write-Log "  [SKIP] $($u.KB) (${sizeGB}GB - qua lon)" "WARNING"
+                    Write-Log "  [SKIP] $updateName" "WARNING"
+                    Write-Log "         Kich thuoc: ${sizeGB}GB (qua lon)" "WARNING"
                     continue
                 }
                 
+                # Kiem tra co can reboot khong
                 if ($u.RebootRequired) {
                     $skippedReboot += $u
-                    Write-Log "  [SKIP] $($u.KB) (${sizeMB}MB - can restart)" "WARNING"
+                    Write-Log "  [SKIP] $updateName" "WARNING"
+                    Write-Log "         Kich thuoc: $sizeText (can restart)" "WARNING"
                 } else {
                     $valid += $u
-                    Write-Log "  [CHON] $($u.KB) (${sizeMB}MB)" "INFO"
+                    Write-Log "  [CHON] $updateName" "INFO"
+                    Write-Log "         KB: $($u.KB) | Kich thuoc: $sizeText" "INFO"
                 }
             }
             
@@ -145,17 +158,31 @@ if (-not $skipUpdate) {
             }
             
             if ($valid.Count -gt 0) {
-                Write-Log "`nCai $($valid.Count) updates..." "WARNING"
+                Write-Log "`nBat dau cai $($valid.Count) updates..." "WARNING"
+                $currentUpdate = 0
                 foreach ($u in $valid) {
+                    $currentUpdate++
+                    $size = if ($u.Size) { $u.Size } else { 0 }
+                    $sizeMB = [math]::Round($size/1MB, 0)
+                    $sizeText = if ($sizeMB -gt 0) { "${sizeMB}MB" } else { "Unknown" }
+                    $updateName = if ($u.Title) { $u.Title } else { $u.KB }
+                    
+                    Write-Log "`n[$currentUpdate/$($valid.Count)] $updateName" "INFO"
+                    Write-Log "         KB: $($u.KB) | Kich thuoc: $sizeText" "INFO"
+                    Write-Log "         Dang cai dat..." "INFO"
                     try {
                         $r = Install-WindowsUpdate -KBArticleID $u.KB -MicrosoftUpdate -AcceptAll -IgnoreReboot -Confirm:$false -EA Stop
                         if ($r) {
-                            Write-Log "  [OK] $($u.KB)" "SUCCESS"
+                            Write-Log "         [OK] Cai thanh cong" "SUCCESS"
                             $installed++
+                        } else {
+                            Write-Log "         [LOI] Cai that bai" "ERROR"
                         }
-                    } catch {}
+                    } catch {
+                        Write-Log "         [LOI] $($_.Exception.Message)" "ERROR"
+                    }
                 }
-                Write-Log "`nCai xong: $installed/$($valid.Count)`n" "SUCCESS"
+                Write-Log "`nTong ket: Cai thanh cong $installed/$($valid.Count) updates`n" "SUCCESS"
             } else {
                 Write-Log "`nKhong co update nao phu hop`n" "INFO"
             }
@@ -228,9 +255,20 @@ $officeInstalled = $false
 try {
     # Tai ODT
     Write-Log "  - Tai Office Deployment Tool..." "INFO"
-    $odtUrl = "https://download.microsoft.com/download/2/7/A/27AF1BE6-DD20-4CB4-B154-EBAB8A7D4A7E/officedeploymenttool_16626-20196.exe"
+    
+    # Link moi nhat tu Microsoft (cap nhat 2025)
+    # Neu link nay het han, tim link moi tai: https://www.microsoft.com/en-us/download/details.aspx?id=49117
+    $odtUrl = "https://download.microsoft.com/download/2/7/A/27AF1BE6-DD20-4CB4-B154-EBAB8A7D4A7E/officedeploymenttool_17830-20162.exe"
     $odtPath = "$env:TEMP\ODT.exe"
-    Invoke-WebRequest -Uri $odtUrl -OutFile $odtPath -UseBasicParsing | Out-Null
+    
+    try {
+        Invoke-WebRequest -Uri $odtUrl -OutFile $odtPath -UseBasicParsing | Out-Null
+    } catch {
+        # Thu link du phong
+        Write-Log "  - Link chinh loi, thu link du phong..." "WARNING"
+        $odtUrl = "https://officecdn.microsoft.com/pr/wsus/setup.exe"
+        Invoke-WebRequest -Uri $odtUrl -OutFile $odtPath -UseBasicParsing | Out-Null
+    }
     
     # Giai nen ODT
     Write-Log "  - Giai nen ODT..." "INFO"
@@ -285,6 +323,7 @@ try {
     
 } catch {
     Write-Log "  [LOI] Loi cai Office: $($_.Exception.Message)" "ERROR"
+    Write-Log "  [INFO] Bo qua Office, tiep tuc cac buoc khac..." "WARNING"
 }
 
 if ($officeInstalled) {
