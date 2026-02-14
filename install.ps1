@@ -328,7 +328,6 @@ $apps = @{
     "VC++ 2015+ x64"="Microsoft.VCRedist.2015+.x64"
     "VC++ 2005 x64"="Microsoft.VCRedist.2005.x64"
     "VC++ 2005 x86"="Microsoft.VCRedist.2005.x86"
-    "Office"="Microsoft.Office"
 }
 
 $success = 0
@@ -351,6 +350,81 @@ foreach ($app in $apps.GetEnumerator()) {
 Write-Log "`nCai xong: $success/$($apps.Count)`n" "SUCCESS"
 
 # ===================================================================
+# BUOC 4: CAI OFFICE 365 (CHI WORD, EXCEL, POWERPOINT)
+# ===================================================================
+Write-Log "`n[BONUS] CAI OFFICE 365" "WARNING"
+Write-Log "==================`n"
+
+Write-Log "Dang cai Office 365 (Word, Excel, PowerPoint)..." "INFO"
+Write-Log "Qua trinh nay mat 10-20 phut, vui long cho..." "WARNING"
+
+$officeInstalled = $false
+
+try {
+    # Tai ODT
+    Write-Log "  - Tai Office Deployment Tool..." "INFO"
+    $odtUrl = "https://download.microsoft.com/download/2/7/A/27AF1BE6-DD20-4CB4-B154-EBAB8A7D4A7E/officedeploymenttool_16626-20196.exe"
+    $odtPath = "$env:TEMP\ODT.exe"
+    Invoke-WebRequest -Uri $odtUrl -OutFile $odtPath -UseBasicParsing | Out-Null
+    
+    # Giai nen ODT
+    Write-Log "  - Giai nen ODT..." "INFO"
+    $odtFolder = "$env:TEMP\ODT"
+    if (Test-Path $odtFolder) { Remove-Item $odtFolder -Recurse -Force }
+    New-Item -ItemType Directory -Path $odtFolder -Force | Out-Null
+    Start-Process -FilePath $odtPath -ArgumentList "/quiet /extract:$odtFolder" -Wait
+    
+    # Tao config XML (chi cai Word, Excel, PowerPoint)
+    Write-Log "  - Tao cau hinh..." "INFO"
+    $configPath = "$odtFolder\config.xml"
+    $config = @'
+<Configuration>
+  <Add OfficeClientEdition="64" Channel="Current">
+    <Product ID="O365ProPlusRetail">
+      <Language ID="en-us" />
+      <Language ID="vi-vn" />
+      <ExcludeApp ID="Outlook" />
+      <ExcludeApp ID="OneNote" />
+      <ExcludeApp ID="Access" />
+      <ExcludeApp ID="Publisher" />
+      <ExcludeApp ID="Teams" />
+      <ExcludeApp ID="Lync" />
+    </Product>
+  </Add>
+  <Display Level="None" AcceptEULA="TRUE" />
+  <Property Name="AUTOACTIVATE" Value="1" />
+  <Updates Enabled="TRUE" />
+</Configuration>
+'@
+    $config | Out-File -FilePath $configPath -Encoding UTF8
+    
+    # Cai dat Office
+    Write-Log "  - Bat dau cai dat (10-20 phut)..." "WARNING"
+    Set-Location $odtFolder
+    $process = Start-Process -FilePath ".\setup.exe" -ArgumentList "/configure `"$configPath`"" -PassThru -Wait
+    
+    if ($process.ExitCode -eq 0) {
+        Write-Log "  [OK] Office cai thanh cong" "SUCCESS"
+        $officeInstalled = $true
+    } else {
+        Write-Log "  [LOI] Cai Office that bai (Code: $($process.ExitCode))" "ERROR"
+    }
+    
+    # Don dep
+    Set-Location $env:TEMP
+    Remove-Item $odtFolder -Recurse -Force -EA SilentlyContinue
+    Remove-Item $odtPath -Force -EA SilentlyContinue
+    
+} catch {
+    Write-Log "  [LOI] Loi cai Office: $($_.Exception.Message)" "ERROR"
+}
+
+if ($officeInstalled) {
+    Write-Log "`nLuu y: Office can dang nhap Microsoft Account de kich hoat" "WARNING"
+    Write-Log "Mo Word hoac Excel de dang nhap`n" "INFO"
+}
+
+# ===================================================================
 # KET THUC
 # ===================================================================
 Write-Log "`n========================================"
@@ -360,6 +434,7 @@ Write-Log "TONG KET:" "WARNING"
 Write-Log "  - Bloatware: $removed/$($bloat.Count)" $(if($removed -gt 0){'SUCCESS'}else{'INFO'})
 Write-Log "  - Updates: $installed" $(if($installed -gt 0){'SUCCESS'}else{'INFO'})
 Write-Log "  - Phan mem: $success/$($apps.Count)" $(if($success -gt 0){'SUCCESS'}else{'INFO'})
+Write-Log "  - Office: $(if($officeInstalled){'Da cai'}else{'Khong cai'})" $(if($officeInstalled){'SUCCESS'}else{'INFO'})
 Write-Log "`nLog: $LogFile" "INFO"
 
 if ($needsReboot) {
