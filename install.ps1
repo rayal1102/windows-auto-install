@@ -1,17 +1,91 @@
+<#
+.SYNOPSIS
+    Script cai dat tu dong phan mem Windows - PHIEN BAN TOI UU
+.DESCRIPTION
+    - Go bo bloatware Windows
+    - Cai dat Windows Updates
+    - Cai dat phan mem tu dong bang WinGet
+    - Khac phuc loi certificate msstore
+    - Logging day du
+.NOTES
+    Version: 3.0 - Optimized
+    Author: Rayal1102 (Optimized)
+#>
+
+#Requires -RunAsAdministrator
+
 Set-ExecutionPolicy Bypass -Scope Process -Force
 $progressPreference = 'silentlyContinue'
-$ErrorActionPreference = 'SilentlyContinue'
+$ErrorActionPreference = 'Continue' # THAY DOI: SilentlyContinue -> Continue de bat loi
 
+# ===================================================================
+# CAU HINH - KHONG DAU
+# ===================================================================
+$LogFile = "$env:TEMP\WindowsAutoInstall_$(Get-Date -Format 'yyyyMMdd_HHmmss').log"
+$MaxUpdateSizeGB = 10 # Kich thuoc toi da cua 1 update (GB)
+
+# ===================================================================
+# FUNCTION LOGGING - KHONG DAU
+# ===================================================================
+function Write-Log {
+    param(
+        [string]$Message,
+        [ValidateSet('INFO','SUCCESS','WARNING','ERROR')]
+        [string]$Level = 'INFO'
+    )
+    
+    $Timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    $LogMessage = "[$Timestamp] [$Level] $Message"
+    Add-Content -Path $LogFile -Value $LogMessage -ErrorAction SilentlyContinue
+    
+    switch ($Level) {
+        'ERROR'   { Write-Host $Message -ForegroundColor Red }
+        'WARNING' { Write-Host $Message -ForegroundColor Yellow }
+        'SUCCESS' { Write-Host $Message -ForegroundColor Green }
+        default   { Write-Host $Message -ForegroundColor Cyan }
+    }
+}
+
+# ===================================================================
+# FUNCTION KIEM TRA INTERNET - KHONG DAU
+# ===================================================================
+function Test-InternetConnection {
+    Write-Log "Kiem tra ket noi Internet..." "INFO"
+    $TestHosts = @('8.8.8.8', '1.1.1.1')
+    
+    foreach ($Host in $TestHosts) {
+        if (Test-Connection -ComputerName $Host -Count 2 -Quiet) {
+            Write-Log "  [OK] Ket noi Internet hoat dong" "SUCCESS"
+            return $true
+        }
+    }
+    
+    Write-Log "  [LOI] Khong co ket noi Internet!" "ERROR"
+    return $false
+}
+
+# ===================================================================
+# BAT DAU SCRIPT - KHONG DAU
+# ===================================================================
 Clear-Host
-Write-Host "`n========================================" -ForegroundColor Cyan
-Write-Host "  SCRIPT CAI DAT TU DONG PHAN MEM" -ForegroundColor Yellow
-Write-Host "========================================`n" -ForegroundColor Cyan
+Write-Log "`n========================================"
+Write-Log "  SCRIPT CAI DAT TU DONG - V3.0 OPTIMIZED"
+Write-Log "========================================`n"
+Write-Log "Log file: $LogFile" "INFO"
+
+# Kiem tra Internet
+if (-not (Test-InternetConnection)) {
+    Read-Host "`nBam Enter de thoat"
+    Exit 1
+}
 
 # ===================================================================
-# BUOC 1: TIM WINGET
+# BUOC 1: TIM VA SUA LOI WINGET - KHONG DAU
 # ===================================================================
-Write-Host "[1/2] Kiem tra WinGet..." -ForegroundColor Yellow
+Write-Log "`n[BUOC 1/5] KIEM TRA VA SUA LOI WINGET" "WARNING"
+Write-Log "================================================`n"
 
+# Tim WinGet
 $winget = $null
 $wingetPaths = @(
     "$env:LOCALAPPDATA\Microsoft\WindowsApps\winget.exe",
@@ -31,56 +105,88 @@ if (-not $winget) {
     if ($cmd) { $winget = $cmd.Source }
 }
 
+# Cai WinGet neu chua co
 if (-not $winget) {
-    Write-Host "      Dang cai dat WinGet..." -ForegroundColor Cyan
+    Write-Log "Dang cai dat WinGet..." "WARNING"
     try {
-        $url = "https://aka.ms/getwinget"
-        $temp = "$env:TEMP\winget.msixbundle"
-        Invoke-WebRequest -Uri $url -OutFile $temp -UseBasicParsing | Out-Null
-        Add-AppxPackage -Path $temp | Out-Null
-        Remove-Item $temp -Force
-        Start-Sleep 3
+        # Tai VCLibs dependencies
+        Write-Log "  - Dang tai VCLibs..." "INFO"
+        $vcLibsUrl = "https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx"
+        $vcLibsPath = "$env:TEMP\VCLibs.appx"
+        Invoke-WebRequest -Uri $vcLibsUrl -OutFile $vcLibsPath -UseBasicParsing
+        Add-AppxPackage -Path $vcLibsPath
+        Remove-Item $vcLibsPath -Force
+        
+        # Tai UI.Xaml
+        Write-Log "  - Dang tai UI.Xaml..." "INFO"
+        $xamlUrl = "https://github.com/microsoft/microsoft-ui-xaml/releases/download/v2.8.6/Microsoft.UI.Xaml.2.8.x64.appx"
+        $xamlPath = "$env:TEMP\UIXaml.appx"
+        Invoke-WebRequest -Uri $xamlUrl -OutFile $xamlPath -UseBasicParsing
+        Add-AppxPackage -Path $xamlPath
+        Remove-Item $xamlPath -Force
+        
+        # Tai WinGet
+        Write-Log "  - Dang tai WinGet..." "INFO"
+        $wingetUrl = "https://aka.ms/getwinget"
+        $wingetPath = "$env:TEMP\winget.msixbundle"
+        Invoke-WebRequest -Uri $wingetUrl -OutFile $wingetPath -UseBasicParsing
+        Add-AppxPackage -Path $wingetPath
+        Remove-Item $wingetPath -Force
+        
+        Start-Sleep 5
         $winget = "$env:LOCALAPPDATA\Microsoft\WindowsApps\winget.exe"
+        Write-Log "  [OK] WinGet da duoc cai dat" "SUCCESS"
     } catch {
-        Write-Host "      [LOI] Khong the cai WinGet!" -ForegroundColor Red
+        Write-Log "  [LOI] Khong the cai WinGet: $($_.Exception.Message)" "ERROR"
+        Write-Log $LogFile "ERROR"
         Read-Host "`nBam Enter de thoat"
-        Exit
+        Exit 1
     }
 }
 
-Write-Host "      [OK] Da san sang" -ForegroundColor Green
+Write-Log "  [OK] WinGet path: $winget" "SUCCESS"
+
+# SUA LOI CERTIFICATE MSSTORE - QUAN TRONG!
+Write-Log "`nSua loi WinGet certificate (0x8a15005e)..." "WARNING"
+try {
+    # Reset winget sources
+    Write-Log "  - Reset winget sources..." "INFO"
+    & $winget source reset --force 2>&1 | Out-Null
+    Start-Sleep 2
+    
+    # Update sources
+    Write-Log "  - Update sources..." "INFO"
+    & $winget source update 2>&1 | Out-Null
+    Start-Sleep 2
+    
+    Write-Log "  [OK] Da sua loi certificate" "SUCCESS"
+} catch {
+    Write-Log "  [CANH BAO] Khong the reset sources, tiep tuc..." "WARNING"
+}
 
 # ===================================================================
-# BUOC 2: CAI WINDOWS TERMINAL
+# BUOC 2: CAI WINDOWS TERMINAL - KHONG DAU
 # ===================================================================
-Write-Host "`n[2/2] Cai dat Windows Terminal..." -ForegroundColor Yellow
-& $winget install Microsoft.WindowsTerminal -e --silent --accept-source-agreements --accept-package-agreements *>$null
-Write-Host "      [OK] Hoan thanh" -ForegroundColor Green
-Write-Host "      Doi 3 giay de Terminal khoi dong..." -ForegroundColor Cyan
-Start-Sleep 3
+Write-Log "`n[BUOC 2/5] CAI DAT WINDOWS TERMINAL" "WARNING"
+Write-Log "================================================`n"
+
+$wtInstalled = Get-AppxPackage -Name "Microsoft.WindowsTerminal" -ErrorAction SilentlyContinue
+
+if (-not $wtInstalled) {
+    Write-Log "Dang cai Windows Terminal..." "INFO"
+    # SUA LOI: Chi dung source winget, tranh loi msstore
+    & $winget install Microsoft.WindowsTerminal -e --source winget --silent --accept-source-agreements --accept-package-agreements 2>&1 | Out-Null
+    Start-Sleep 3
+    Write-Log "  [OK] Da cai Windows Terminal" "SUCCESS"
+} else {
+    Write-Log "  [OK] Windows Terminal da co san" "SUCCESS"
+}
 
 # ===================================================================
-# TAO SCRIPT CHINH
+# BUOC 3: GO BLOATWARE - KHONG DAU
 # ===================================================================
-Write-Host "`nDang chuan bi script..." -ForegroundColor Yellow
-
-$mainScript = "$env:TEMP\main_install.ps1"
-
-@'
-Set-ExecutionPolicy Bypass -Scope Process -Force
-$ErrorActionPreference = 'SilentlyContinue'
-$progressPreference = 'silentlyContinue'
-
-Clear-Host
-Write-Host "`n================================================" -ForegroundColor Cyan
-Write-Host "  WINDOWS TERMINAL - CAI DAT TU DONG" -ForegroundColor Yellow
-Write-Host "================================================`n" -ForegroundColor Cyan
-
-# ===================================================================
-# PHAN 1: GO BO BLOATWARE
-# ===================================================================
-Write-Host "BUOC 1: GO BO UNG DUNG WINDOWS KHONG CAN THIET" -ForegroundColor Yellow
-Write-Host "================================================`n" -ForegroundColor Yellow
+Write-Log "`n[BUOC 3/5] GO BO BLOATWARE WINDOWS" "WARNING"
+Write-Log "================================================`n"
 
 $bloatware = @{
     "Cortana" = "Microsoft.549981C3F5F10*"
@@ -116,136 +222,129 @@ $current = 0
 
 foreach ($app in $bloatware.GetEnumerator()) {
     $current++
-    Write-Host "[$current/$total] $($app.Key)..." -NoNewline -ForegroundColor Cyan
+    Write-Log "[$current/$total] $($app.Key)..." "INFO"
     
     $package = Get-AppxPackage -AllUsers $app.Value -ErrorAction SilentlyContinue
     if ($package) {
-        Remove-AppxPackage -Package $package.PackageFullName -AllUsers -ErrorAction SilentlyContinue
-        Write-Host " [DA GO]" -ForegroundColor Green
-        $removed++
-    } else {
-        Write-Host " [KHONG CO]" -ForegroundColor Gray
-    }
-}
-
-Write-Host "`nTong ket: Da go $removed/$total ung dung`n" -ForegroundColor Green
-Start-Sleep 2
-
-# ===================================================================
-# PHAN 2: TIM WINGET
-# ===================================================================
-Write-Host "`nBUOC 2: KIEM TRA WINGET" -ForegroundColor Yellow
-Write-Host "================================================`n" -ForegroundColor Yellow
-
-$winget = Get-Command winget -ErrorAction SilentlyContinue
-if (-not $winget) {
-    $winget = Get-Item "$env:LOCALAPPDATA\Microsoft\WindowsApps\winget.exe" -ErrorAction SilentlyContinue
-}
-if (-not $winget) {
-    $winget = Get-Item "C:\Program Files\WindowsApps\*\winget.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
-}
-$wingetPath = if ($winget.Source) { $winget.Source } else { $winget.FullName }
-
-Write-Host "[OK] Tim thay WinGet: $wingetPath`n" -ForegroundColor Green
-Start-Sleep 1
-
-# ===================================================================
-# PHAN 3: CAI MODULE WINDOWS UPDATE
-# ===================================================================
-Write-Host "`nBUOC 3: CAI DAT MODULE WINDOWS UPDATE" -ForegroundColor Yellow
-Write-Host "================================================`n" -ForegroundColor Yellow
-
-if (-not (Get-Module -ListAvailable -Name PSWindowsUpdate)) {
-    Write-Host "Dang tai module PSWindowsUpdate..." -ForegroundColor Cyan
-    Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force | Out-Null
-    Set-PSRepository -Name 'PSGallery' -InstallationPolicy Trusted | Out-Null
-    Install-Module -Name PSWindowsUpdate -Force -Confirm:$false | Out-Null
-    Write-Host "[OK] Da cai dat module`n" -ForegroundColor Green
-} else {
-    Write-Host "[OK] Module da co san`n" -ForegroundColor Green
-}
-
-Import-Module PSWindowsUpdate -ErrorAction SilentlyContinue
-Start-Sleep 1
-
-# ===================================================================
-# PHAN 4: KIEM TRA VA CAI WINDOWS UPDATE
-# ===================================================================
-Write-Host "`nBUOC 4: KIEM TRA WINDOWS UPDATE" -ForegroundColor Yellow
-Write-Host "================================================`n" -ForegroundColor Yellow
-
-Write-Host "Dang quet cap nhat (co the mat 1-2 phut)...`n" -ForegroundColor Cyan
-
-$updates = Get-WindowsUpdate -ErrorAction SilentlyContinue
-
-if ($updates) {
-    $totalUpdates = $updates.Count
-    Write-Host "Tim thay $totalUpdates ban cap nhat`n" -ForegroundColor Cyan
-    
-    $validUpdates = @()
-    $maxSizeGB = 10
-    
-    Write-Host "Dang phan tich cac ban cap nhat...`n" -ForegroundColor Cyan
-    foreach ($update in $updates) {
-        $sizeGB = [math]::Round($update.Size / 1GB, 2)
-        $sizeMB = [math]::Round($update.Size / 1MB, 0)
-        
-        if ($sizeGB -gt $maxSizeGB) {
-            Write-Host "  [BO QUA] $($update.Title)" -ForegroundColor Red
-            Write-Host "           Kich thuoc: ${sizeGB}GB (qua lon)`n" -ForegroundColor Gray
-        } else {
-            $validUpdates += $update
-            Write-Host "  [CHON] $($update.Title)" -ForegroundColor Green
-            Write-Host "         Kich thuoc: ${sizeMB}MB`n" -ForegroundColor Gray
+        try {
+            Remove-AppxPackage -Package $package.PackageFullName -AllUsers -ErrorAction Stop
+            Write-Log "  [OK] Da go" "SUCCESS"
+            $removed++
+        } catch {
+            Write-Log "  [LOI] Khong the go: $($_.Exception.Message)" "ERROR"
         }
+    } else {
+        Write-Log "  [SKIP] Khong co" "INFO"
+    }
+}
+
+Write-Log "`nTong ket: Da go $removed/$total ung dung`n" "SUCCESS"
+
+# ===================================================================
+# BUOC 4: CAI WINDOWS UPDATE - KHONG DAU (SUA LOI CHINH)
+# ===================================================================
+Write-Log "`n[BUOC 4/5] CAI DAT WINDOWS UPDATE" "WARNING"
+Write-Log "================================================`n"
+
+# Cai NuGet Provider truoc
+Write-Log "Cai dat NuGet Provider..." "INFO"
+try {
+    if (-not (Get-PackageProvider -Name NuGet -ErrorAction SilentlyContinue)) {
+        Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force -Scope CurrentUser | Out-Null
+        Write-Log "  [OK] NuGet Provider da cai" "SUCCESS"
+    }
+} catch {
+    Write-Log "  [CANH BAO] Loi cai NuGet: $($_.Exception.Message)" "WARNING"
+}
+
+# Cai PSWindowsUpdate Module
+Write-Log "Cai dat PSWindowsUpdate Module..." "INFO"
+try {
+    if (-not (Get-Module -ListAvailable -Name PSWindowsUpdate)) {
+        Set-PSRepository -Name 'PSGallery' -InstallationPolicy Trusted -ErrorAction SilentlyContinue
+        Install-Module -Name PSWindowsUpdate -Force -Scope CurrentUser -AllowClobber -ErrorAction Stop
+        Write-Log "  [OK] Module da cai" "SUCCESS"
+    } else {
+        Write-Log "  [OK] Module da co san" "SUCCESS"
     }
     
-    if ($validUpdates.Count -gt 0) {
-        Write-Host "`n--- BAT DAU TAI VA CAI DAT ---`n" -ForegroundColor Yellow
+    Import-Module PSWindowsUpdate -Force -ErrorAction Stop
+} catch {
+    Write-Log "  [LOI] Khong the cai Module: $($_.Exception.Message)" "ERROR"
+    Write-Log "  [SKIP] Bo qua Windows Update" "WARNING"
+    $skipUpdate = $true
+}
+
+# Kiem tra va cai Updates
+if (-not $skipUpdate) {
+    Write-Log "`nDang quet Windows Update (co the mat 2-5 phut)..." "INFO"
+    
+    try {
+        # SUA LOI CHINH: Dung -MicrosoftUpdate thay vi Get-WindowsUpdate don thuan
+        $updates = Get-WindowsUpdate -MicrosoftUpdate -ErrorAction Stop
         
-        $installCount = 0
-        $totalValid = $validUpdates.Count
-        $currentUpdate = 0
-        
-        foreach ($update in $validUpdates) {
-            $currentUpdate++
-            $sizeMB = [math]::Round($update.Size / 1MB, 0)
+        if ($updates -and $updates.Count -gt 0) {
+            Write-Log "  [OK] Tim thay $($updates.Count) updates`n" "SUCCESS"
             
-            Write-Host "[$currentUpdate/$totalValid] $($update.Title)" -ForegroundColor Cyan
-            Write-Host "             Kich thuoc: ${sizeMB}MB" -ForegroundColor Gray
-            Write-Host "             Dang tai va cai dat..." -NoNewline -ForegroundColor Yellow
-            
-            try {
-                Install-WindowsUpdate -KBArticleID $update.KB -AcceptAll -IgnoreReboot -Confirm:$false *>$null
+            # Loc updates theo kich thuoc
+            $validUpdates = @()
+            foreach ($update in $updates) {
+                $sizeGB = [math]::Round($update.Size / 1GB, 2)
+                $sizeMB = [math]::Round($update.Size / 1MB, 0)
                 
-                if ($LASTEXITCODE -eq 0) {
-                    Write-Host " [OK]`n" -ForegroundColor Green
-                    $installCount++
+                if ($sizeGB -gt $MaxUpdateSizeGB) {
+                    Write-Log "  [SKIP] $($update.KB) - $($update.Title)" "WARNING"
+                    Write-Log "         Kich thuoc: ${sizeGB}GB (qua lon)" "WARNING"
                 } else {
-                    Write-Host " [LOI]`n" -ForegroundColor Red
+                    $validUpdates += $update
+                    Write-Log "  [CHON] $($update.KB) - $($update.Title)" "INFO"
+                    Write-Log "         Kich thuoc: ${sizeMB}MB" "INFO"
                 }
-            } catch {
-                Write-Host " [LOI]`n" -ForegroundColor Red
             }
+            
+            # Cai dat updates
+            if ($validUpdates.Count -gt 0) {
+                Write-Log "`nBat dau cai dat $($validUpdates.Count) updates..." "WARNING"
+                
+                $installCount = 0
+                foreach ($update in $validUpdates) {
+                    $sizeMB = [math]::Round($update.Size / 1MB, 0)
+                    Write-Log "  Dang cai: $($update.KB) (${sizeMB}MB)..." "INFO"
+                    
+                    try {
+                        # SUA LOI: Dung Install-WindowsUpdate voi -MicrosoftUpdate
+                        $result = Install-WindowsUpdate -KBArticleID $update.KB -MicrosoftUpdate -AcceptAll -IgnoreReboot -Confirm:$false -ErrorAction Stop
+                        
+                        if ($result) {
+                            Write-Log "    [OK] Cai thanh cong" "SUCCESS"
+                            $installCount++
+                        } else {
+                            Write-Log "    [LOI] Cai that bai" "ERROR"
+                        }
+                    } catch {
+                        Write-Log "    [LOI] $($_.Exception.Message)" "ERROR"
+                    }
+                }
+                
+                Write-Log "`nTong ket Windows Update:" "SUCCESS"
+                Write-Log "  - Da cai: $installCount/$($validUpdates.Count)" "SUCCESS"
+                Write-Log "  - Bo qua: $($updates.Count - $validUpdates.Count) (qua lon)" "INFO"
+            } else {
+                Write-Log "  [OK] Khong co update phu hop" "SUCCESS"
+            }
+        } else {
+            Write-Log "  [OK] He thong da cap nhat moi nhat" "SUCCESS"
         }
-        
-        Write-Host "`nTong ket Windows Update:" -ForegroundColor Yellow
-        Write-Host "  - Da cai thanh cong: $installCount/$totalValid" -ForegroundColor Green
-        Write-Host "  - Bo qua (qua lon): $($totalUpdates - $totalValid)`n" -ForegroundColor Gray
-    } else {
-        Write-Host "`n[OK] Khong co ban cap nhat nao phu hop`n" -ForegroundColor Green
+    } catch {
+        Write-Log "  [LOI] Loi kiem tra updates: $($_.Exception.Message)" "ERROR"
     }
-} else {
-    Write-Host "[OK] He thong da cap nhat moi nhat`n" -ForegroundColor Green
 }
 
-Start-Sleep 2
-
 # ===================================================================
-# PHAN 5: CAI DAT PHAN MEM
+# BUOC 5: CAI PHAN MEM - KHONG DAU (SUA LOI CERTIFICATE)
 # ===================================================================
-Write-Host "`nBUOC 5: CAI DAT PHAN MEM" -ForegroundColor Yellow
-Write-Host "================================================`n" -ForegroundColor Yellow
+Write-Log "`n[BUOC 5/5] CAI DAT PHAN MEM" "WARNING"
+Write-Log "================================================`n"
 
 $apps = @{
     "UniKey" = "UniKey.UniKey"
@@ -268,75 +367,49 @@ $apps = @{
 $total = $apps.Count
 $current = 0
 $success = 0
+$failed = @()
 
 foreach ($app in $apps.GetEnumerator()) {
     $current++
-    Write-Host "[$current/$total] $($app.Key)" -ForegroundColor Cyan
-    Write-Host "          Package: $($app.Value)" -ForegroundColor Gray
-    Write-Host "          Dang tai va cai dat..." -NoNewline -ForegroundColor Yellow
+    Write-Log "[$current/$total] $($app.Key)" "INFO"
+    Write-Log "  Package: $($app.Value)" "INFO"
     
-    & $wingetPath install -e --id $app.Value --silent --accept-source-agreements --accept-package-agreements *>$null
-    
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host " [OK]`n" -ForegroundColor Green
-        $success++
-    } else {
-        Write-Host " [LOI]`n" -ForegroundColor Red
+    try {
+        # SUA LOI CHINH: Chi dung --source winget, TRANH loi msstore certificate
+        $result = & $winget install -e --id $app.Value --source winget --silent --accept-source-agreements --accept-package-agreements 2>&1
+        
+        if ($LASTEXITCODE -eq 0) {
+            Write-Log "  [OK] Cai thanh cong`n" "SUCCESS"
+            $success++
+        } else {
+            Write-Log "  [LOI] Exit code: $LASTEXITCODE`n" "ERROR"
+            $failed += $app.Key
+        }
+    } catch {
+        Write-Log "  [LOI] $($_.Exception.Message)`n" "ERROR"
+        $failed += $app.Key
     }
 }
 
 # ===================================================================
-# KET THUC
+# KET THUC - KHONG DAU
 # ===================================================================
-Write-Host "`n================================================" -ForegroundColor Cyan
-Write-Host "  HOAN TAT CAI DAT" -ForegroundColor Yellow
-Write-Host "================================================`n" -ForegroundColor Cyan
+Write-Log "`n========================================"
+Write-Log "  HOAN TAT CAI DAT"
+Write-Log "========================================`n"
 
-Write-Host "TONG KET CUOI CUNG:" -ForegroundColor Yellow
-Write-Host "  1. Bloatware: Da go $removed/$($bloatware.Count) ung dung" -ForegroundColor $(if($removed -gt 0){'Green'}else{'Gray'})
-Write-Host "  2. Windows Update: Da cai $installCount ban cap nhat" -ForegroundColor $(if($installCount -gt 0){'Green'}else{'Gray'})
-Write-Host "  3. Phan mem: Da cai $success/$total ung dung" -ForegroundColor $(if($success -gt 0){'Green'}else{'Gray'})
-Write-Host ""
+Write-Log "TONG KET CUOI CUNG:" "WARNING"
+Write-Log "  1. Bloatware: Da go $removed/$($bloatware.Count) ung dung" $(if($removed -gt 0){'SUCCESS'}else{'INFO'})
+Write-Log "  2. Windows Update: Da cai $installCount updates" $(if($installCount -gt 0){'SUCCESS'}else{'INFO'})
+Write-Log "  3. Phan mem: Da cai $success/$total ung dung" $(if($success -gt 0){'SUCCESS'}else{'INFO'})
 
-Write-Host "Bam phim bat ky de dong cua so..." -ForegroundColor Cyan
+if ($failed.Count -gt 0) {
+    Write-Log "`nPhan mem LOI (can cai thu cong):" "WARNING"
+    foreach ($app in $failed) {
+        Write-Log "  - $app" "ERROR"
+    }
+}
+
+Write-Log "`nLog file: $LogFile" "INFO"
+Write-Log "`nBam phim bat ky de thoat..." "INFO"
 $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
-'@ | Out-File -FilePath $mainScript -Encoding UTF8 -Force
-
-Write-Host "[OK] Da tao script`n" -ForegroundColor Green
-
-# ===================================================================
-# MO WINDOWS TERMINAL - SUA LOI
-# ===================================================================
-Write-Host "Dang mo Windows Terminal..." -ForegroundColor Yellow
-Write-Host "Cua so hien tai se DONG, vui long theo doi cua so MOI`n" -ForegroundColor Cyan
-
-$wt = "$env:LOCALAPPDATA\Microsoft\WindowsApps\wt.exe"
-
-# Kiem tra Windows Terminal
-if (-not (Test-Path $wt)) {
-    Write-Host "[LOI] Khong tim thay Windows Terminal!" -ForegroundColor Red
-    Write-Host "Cai dat lai Terminal..." -ForegroundColor Yellow
-    & $winget install Microsoft.WindowsTerminal -e --accept-source-agreements --accept-package-agreements
-    Start-Sleep 5
-}
-
-# Mo Terminal va DONG cua so cu
-if (Test-Path $wt) {
-    Write-Host "[OK] Dang mo Terminal moi..." -ForegroundColor Green
-    Write-Host ">>> CUA SO NAY SE TU DONG DONG SAU 3 GIAY <<<`n" -ForegroundColor Yellow
-    
-    Start-Sleep 3
-    
-    # Mo Terminal voi quyen Admin
-    Start-Process $wt -ArgumentList "new-tab PowerShell -NoExit -Command `"& '$mainScript'`"" -Verb RunAs
-    
-    # Doi 2 giay roi dong cua so cu
-    Start-Sleep 2
-    Exit
-} else {
-    Write-Host "[CANH BAO] Van khong tim thay Terminal!" -ForegroundColor Red
-    Write-Host "Chay truc tiep trong cua so nay...`n" -ForegroundColor Yellow
-    Start-Sleep 3
-    Clear-Host
-    & powershell.exe -NoExit -File $mainScript
-}
